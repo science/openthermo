@@ -1,0 +1,11 @@
+{
+  "immediate-operation": "scheduled",
+  "scheduled-operation-mode": "daily",
+  "daily-schedule": {
+    "daily": {"times-of-operation": [
+      {"start": "6:30 am", "stop": "10:00 am", "temp-f": 68},
+      {"start": "10:00 am", "stop": "6:00 pm", "temp-f": 62},
+      {"start": "7:00 pm", "stop": "11:00 pm", "temp-f": 70},
+      {"start": "11:00 pm", "stop": "6:30 am", "temp-f": 62}
+  ]}}
+}
