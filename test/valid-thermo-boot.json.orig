@@ -6,7 +6,8 @@
     "watch_timeout_minutes": 780
   },
   "operating_parameters": {
-    "max_temp_f": 80,
-    "max_operating_minutes": 60
+    "max_temp_f": 79,
+    "max_operating_time": "59 minutes",
+    "hysteresis_duration": "6 minutes"
   }
 }
