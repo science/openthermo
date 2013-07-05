@@ -1,8 +1,4 @@
 ## Thermoruby Custom Ignore ##
-test/node_modules/
-test/thermo-server.js
-test/utils.js
-test/startserver.cmd
 
 
 
