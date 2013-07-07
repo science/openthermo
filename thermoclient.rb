@@ -60,7 +60,7 @@ module Thermo
     attr_accessor :override_current_temp_f
     attr_accessor :override_relay_state
     attr_reader :heater_last_on_time
-    attr_reader :goal_temp
+    attr_reader :goal_temp_f
     
     # start up by loading our configuration
     def initialize
@@ -111,8 +111,11 @@ module Thermo
     # we set the current time to base the parsing on 
     # using our internal time, which permits testing
     # using alternate times to the current system clock
-    def parse_time(time_str)
-      Chronic.parse(time_str, :now => Chronic.parse(self.current_year_month_day_str))
+    def parse_time(time_str, options={})
+      options[:now] = options[:now] || self.current_time
+      retval = Chronic.parse(time_str, options)
+      #Chronic.parse(self.current_year_month_day_str))
+      retval
     end
     
     # assigns hardware-obtained temperature in farenheit to internal state variable
@@ -134,18 +137,26 @@ module Thermo
       # heater should not run hotter than max temp
       
       # compare current time/temp with config specified in file
+      heater_state_modified = false
       self.configuration.config["daily_schedule"]["daily"]["times_of_operation"].each do |time_window|
         start_time = self.parse_time(time_window["start"])
         end_time = self.parse_time(time_window["stop"])
-        goal_temp = time_window["temp_f"]
-
+        goal_temp_f = time_window["temp_f"]
         if (start_time < current_time) && (end_time > current_time)
-          if self.current_temp_f < goal_temp
+          if self.current_temp_f < goal_temp_f
             set_heater_state(true)
+            heater_state_modified = true
           else
             set_heater_state(false)
+            heater_state_modified = true
           end
         end
+      end
+      # if we haven't modified the heater state that means we 
+      # did not find a matching time window and so should turn
+      # the heater off (a gap in the time window = heater off)
+      if !heater_state_modified
+        set_heater_state(false) 
       end
     end
     
@@ -164,32 +175,34 @@ module Thermo
     def heater_on?
       # TODO add hardware call to determine relay state
       # get_hardware_heater_activity_state || _
-      @override_heater_activity_state  || @heater_on
+      retval = @heater_on_state
+      retval
     end
 
     def heater_on=(state)
-      @heater_on = state
+      @heater_on_state = state
       # TODO add hardware call to set heater relay to on or off
     end
 
     # Returns true if the heater should remain off due to hysteresis control
     # This prevents the heater from going on and off too rapidly
     def in_hysteresis?
-      # we don't use "Time::now" here b/c current_time may be overridden in tests
-      time = self.current_hour_min_sec_str
+      # if the heater hasn't been turned on yet, we cannot be in hysteresis
+      return false if !self.heater_last_on_time
       # this calculate the current time plus the hysteresis duration
-      hys_window = self.parse_time(@hysteresis_duration+ " from "+time) 
-      current_time >= hys_window
+      hys_calc = @hysteresis_duration+ " after"
+      hys_window = self.parse_time(hys_calc, :now => self.heater_last_on_time) 
+      current_time < hys_window
     end
 
     # send true to turn heater on, false to turn heater off
     def set_heater_state(setting = true)
       # Only change the hardware state to on if hysteresis_window is satisfied
       if setting && !in_hysteresis?
-        heater_on = true
+        self.heater_on = true
         set_heater_last_on_time
       elsif !setting 
-        heater_on = false
+        self.heater_on = false
         reset_heater_last_on_time
       end
     end
