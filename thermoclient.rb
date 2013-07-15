@@ -1,3 +1,7 @@
+### REMOVE FROM PRODUCTION ###
+require 'debugger';     
+##############################
+
 require 'json'
 require 'net/http'
 require 'chronic'
@@ -13,9 +17,10 @@ module Thermo
   class ThermoError < RuntimeError; end
   class ConfigFileNotFound < ThermoError; end
   class UnknownSchedule < ThermoError; end
+  class InvalidTemperature < ThermoError; end
   BOOT_FILE_NAME = "boot.json"
   HYSTERESIS_DURATION_DEFAULT = "5 minutes"
-  MAX_OPERATING_TIME_DEFAULT = "60 minutes"
+  MAX_OPERATING_TIME__MINUTES_DEFAULT = "60"
   MAX_TEMP_F_DEFAULT = 80
 
   # Configuration class is responsible for loading and re-loading configurations
@@ -45,13 +50,19 @@ module Thermo
   # and write relay actions to RPi based on schedule and temperature goal and 
   # actual data
   class Thermostat
+    # exposes the configuration object
     attr_accessor :configuration
+    # allows testing harness to initiate debug breakpoints
+    attr_accessor :debug
+    def dbg
+      debugger if self.debug
+    end
 
     # safety features
     # holds a time which indicates when the heater is allowed to turn back on
     # this prevents hystersis, where the heater goes on/off rapidly based on
     # small temperature fluctuations
-    attr_accessor :max_heater_on_time
+    attr_accessor :max_heater_on_time_minutes
     attr_accessor :max_temp_f
     attr_accessor :hysteresis_duration
     
@@ -73,9 +84,9 @@ module Thermo
     end
     
     def setup_safety_config
-      @max_heater_on_time = self.configuration.boot["operating_parameters"]["max_operating_time"]
-      if !self.parse_time(@max_heater_on_time+ " from now").kind_of?(Time)
-        @max_heater_on_time = MAX_OPERATING_TIME_DEFAULT
+      @max_heater_on_time_minutes = self.configuration.boot["operating_parameters"]["max_operating_time_minutes"].to_i
+      if @max_heater_on_time_minutes == 0
+        @max_heater_on_time_minutes = MAX_OPERATING_TIME_MINUTES_DEFAULT
       end
       @hysteresis_duration = self.configuration.boot["operating_parameters"]["hysteresis_duration"]
       if !self.parse_time(@hysteresis_duration+ " from now")
@@ -114,7 +125,6 @@ module Thermo
     def parse_time(time_str, options={})
       options[:now] = options[:now] || self.current_time
       retval = Chronic.parse(time_str, options)
-      #Chronic.parse(self.current_year_month_day_str))
       retval
     end
     
@@ -132,22 +142,27 @@ module Thermo
       # error out if we don't know how to handle the schedule file
       raise UnknownSchedule, "Unknown schedule found in configuration file. Currently we only handle 'daily_schedule' type" unless self.configuration.config["daily_schedule"]
 
-      # safety checks
+      # TODO safety checks
       # heater should not run more than max heater on time
       # heater should not run hotter than max temp
       
       # compare current time/temp with config specified in file
       heater_state_modified = false
-      self.configuration.config["daily_schedule"]["daily"]["times_of_operation"].each do |time_window|
+      times_of_op = self.configuration.config["daily_schedule"]["daily"]["times_of_operation"]
+      times_of_op.each do |time_window|
         start_time = self.parse_time(time_window["start"])
         end_time = self.parse_time(time_window["stop"])
-        goal_temp_f = time_window["temp_f"]
-        if (start_time < current_time) && (end_time > current_time)
-          if self.current_temp_f < goal_temp_f
-            set_heater_state(true)
+        if end_time == self.parse_time("12:00 am")
+          end_time = self.parse_time("tomorrow at 12:00 am")
+        end
+        new_goal_temp_f = time_window["temp_f"]
+        if (start_time <= current_time) && (end_time >= current_time)
+          if self.current_temp_f < new_goal_temp_f
+            set_heater_state(true, new_goal_temp_f)
             heater_state_modified = true
+            break
           else
-            set_heater_state(false)
+            set_heater_state(false, new_goal_temp_f)
             heater_state_modified = true
           end
         end
@@ -158,6 +173,14 @@ module Thermo
       if !heater_state_modified
         set_heater_state(false) 
       end
+    end
+
+    def goal_temp_f
+      @goal_temp_f
+    end
+    
+    def goal_temp_f=(new_temp_f)
+      @goal_temp_f = new_temp_f
     end
     
     # this records the time at which the heater was last turned on
@@ -184,26 +207,79 @@ module Thermo
       # TODO add hardware call to set heater relay to on or off
     end
 
+    # Returns true if the measured temp is higher than safety value
+    def current_temp_too_hot_to_operate?
+      self.current_temp_f >= self.max_temp_f
+    end
+
     # Returns true if the heater should remain off due to hysteresis control
     # This prevents the heater from going on and off too rapidly
     def in_hysteresis?
       # if the heater hasn't been turned on yet, we cannot be in hysteresis
       return false if !self.heater_last_on_time
-      # this calculate the current time plus the hysteresis duration
+      # this calculates the current time plus the hysteresis duration
       hys_calc = @hysteresis_duration+ " after"
       hys_window = self.parse_time(hys_calc, :now => self.heater_last_on_time) 
       current_time < hys_window
     end
 
+    # returns the number of minutes the heater has been running
+    # returns nil if not running
+    def heater_running_time_minutes
+      return nil if !heater_on?
+      return nil if self.heater_last_on_time >= self.current_time
+      (self.current_time - self.heater_last_on_time)/60
+    end
+
+    # returns true if heater has been on for longer than allowable period 
+    # as provided in boot json file
+    def heater_on_too_long?
+      retval = true
+      return false if !heater_on?
+      if self.heater_running_time_minutes && (self.heater_running_time_minutes < self.max_heater_on_time_minutes)
+        return false
+      end
+      retval
+    end
+
+    # Returns true if all safety parameters for heater operation
+    # allow heater to be on. 
+    # NOTE: If this returns false, the heater MUST be turned off
+    # It MUST NOT simply remain in the state it was in.
+    def heater_safe_to_turn_on?
+      return false if self.in_hysteresis?
+      return false if self.heater_on_too_long?
+      return false if self.current_temp_too_hot_to_operate?
+      true
+    end
+
     # send true to turn heater on, false to turn heater off
-    def set_heater_state(setting = true)
-      # Only change the hardware state to on if hysteresis_window is satisfied
-      if setting && !in_hysteresis?
+    def set_heater_state(turn_heater_on, new_goal_temp_f = nil)
+      # Only change the heater to on if safety parameters are satisfied
+      if turn_heater_on && self.heater_safe_to_turn_on?
+        raise(Thermo::InvalidTemperature, "Temp must be supplied to set_heater_state in order to turn on heater")if !new_goal_temp_f        
         self.heater_on = true
         set_heater_last_on_time
-      elsif !setting 
+        self.goal_temp_f = new_goal_temp_f
+      elsif !turn_heater_on
         self.heater_on = false
+        ## TODO Remove this?
         reset_heater_last_on_time
+        self.goal_temp_f = new_goal_temp_f
+      else
+        # this state occurs when heater is out of safety params
+        # or unhandled in some other way
+        # Heater must be turned off when unhandled
+        # We don't reset heater_last_on_time because hysteresis
+        # and max runtime safety limits depend on that calculation
+
+        # bring the heater_last_on_time to current time
+        # this allows hysteresis to keep the heater off for a period
+        # if the heater has been running too long (and that's why it's being 
+        # turned off)
+        set_heater_last_on_time if self.heater_on?
+        self.heater_on = false
+        self.goal_temp_f = new_goal_temp_f
       end
     end
 

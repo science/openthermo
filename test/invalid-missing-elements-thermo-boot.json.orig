@@ -1,11 +1,13 @@
 {
+  "comment": "Structure is missing hysteresis_duration element",
   "config_source": {
     "immediate_polling_seconds": 300,
+    "config_url": "http://localhost:8080/now/backbedroom.json",
     "config_url_watch": "http://localhost:8080/watchfile/backbedroom.json",
     "watch_timeout_minutes": 780
   },
   "operating_parameters": {
-    "max_temp_f": "invalid",
-    "max_operating_minutes": 60
+    "max_temp_f": 79,
+    "max_operating_time_minutes": "59"
   }
 }
