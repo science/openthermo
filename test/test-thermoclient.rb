@@ -8,10 +8,15 @@ require 'debugger'
 
 VALID_BOOT_JSON_ORIG = 'valid-thermo-boot.json.orig'
 VALID_CONFIG_JSON_ORIG = 'backbedroom.json.orig'
+INVALID_MALFORMED_CONFIG_JSON_ORIG = 'invalid-malformed-backbedroom.json.orig'
+INVALID_MISSING_ELEMENT_CONFIG_JSON_ORIG = 'invalid-missing-element-backbedroom.json.orig'
 VALID_EXTREME_TEMP_CONFIG_JSON_ORIG = 'backbedroom_hot.json.orig'
 INVALID_MALFORMED_BOOT_JSON_ORIG = 'invalid-malformed-thermo-boot.json.orig'
 INVALID_MISSING_ELEMENT_BOOT_JSON_ORIG = 'invalid-missing-elements-thermo-boot.json.orig'
-# this file must be made available to a webserver at the path specified in VALID_BOOT_JSON_ORIG for config_url and config_url_watch
+# this file is made available to a webserver at the path specified in 
+# VALID_BOOT_JSON_ORIG for config_url and config_url_watch.
+# This is done by setup/teardown routines below
+# This file should NOT exist in between testing sessions
 CONFIG_JSON = 'backbedroom.json'
 
 class TestThermoClient < Minitest::Test
@@ -33,29 +38,39 @@ class TestThermoClient < Minitest::Test
     config = Thermo::Configuration.new
     assert_equal JSON.parse(IO.read(VALID_BOOT_JSON_ORIG)), config.boot
     assert_equal JSON.parse(IO.read(VALID_CONFIG_JSON_ORIG)), config.config
+    ## TODO test that configuration fails to load bad config files
+    # options = {:config_file => "}
+    # config = Thermo::Configuration.new(options)
   end
 
 ## Operating tests
 ## Test operating limits control from thermostat
 
-# Test thermostat raises exceptions for invalid boot.json values
-# Test thermostat raises exceptions for invalid operating file data
-#   Test that thermostat correctly turns off heater on invalid operating data
 # Test invalid files and inputs
 # Test malformed JSON config files
 # Test invalid input from thermometer
 
   # show that we raise exceptions when we get bad json config files
   def test_invalid_boot_json_file
-    [INVALID_MALFORMED_BOOT_JSON_ORIG, INVALID_MISSING_ELEMENT_BOOT_JSON_ORIG].each do |invalid_config_file|
-      FileUtils.cp(invalid_config_file, Thermo::BOOT_FILE_NAME)
-## TODO
-    end
+    invalid_config_file = INVALID_MALFORMED_BOOT_JSON_ORIG
+    FileUtils.cp(invalid_config_file, Thermo::BOOT_FILE_NAME)
+    assert_raises(Thermo::InitializeFailed) {thermostat = Thermo::Thermostat.new}
+    invalid_config_file = INVALID_MISSING_ELEMENT_BOOT_JSON_ORIG
+    FileUtils.cp(invalid_config_file, Thermo::BOOT_FILE_NAME)
+    thermostat = nil
+    assert_raises(Thermo::InitializeFailed) {thermostat = Thermo::Thermostat.new}
   end
 
   def test_invalid_config_json_file
+    FileUtils.cp(INVALID_MALFORMED_CONFIG_JSON_ORIG, CONFIG_JSON)
+    assert_raises(Thermo::InitializeFailed) {thermostat = Thermo::Thermostat.new}
+    
+#    thermostat = Thermo::Thermostat.new
+#    puts thermostat.configuration.config.inspect
+    # test invalid config file on boot fails correctly
     FileUtils.cp(VALID_CONFIG_JSON_ORIG, CONFIG_JSON)
-# TODO  
+    # test invalid config file during running operations fails
+    assert_silent {thermostat = Thermo::Thermostat.new({:throw=>true})}
   end
 
   # Heater should be on but it has exceeded max allowable temp
@@ -319,6 +334,10 @@ class TestThermoClient < Minitest::Test
     assert_equal cur_time, thermostat.current_time, "Thermostat time should be #{cur_time.inspect} but was #{thermostat.current_time.inspect}"
     thermostat.override_current_temp_f = cur_temp
     assert_equal cur_temp, thermostat.current_temp_f, "Thermostat temp should be #{cur_temp.inspect} but was #{thermostat.current_temp_f}"
+  end
+  
+  assert_nothing_raised(&proc)
+  
   end
   
 end

@@ -18,6 +18,8 @@ module Thermo
   class ConfigFileNotFound < ThermoError; end
   class UnknownSchedule < ThermoError; end
   class InvalidTemperature < ThermoError; end
+  class InitializeFailed < ThermoError; end
+  
   BOOT_FILE_NAME = "boot.json"
   HYSTERESIS_DURATION_DEFAULT = "5 minutes"
   MAX_OPERATING_TIME__MINUTES_DEFAULT = "60"
@@ -30,17 +32,19 @@ module Thermo
     attr_accessor :boot, :config
     
     # load our default settings from the boot.json file
-    def initialize(boot_file = BOOT_FILE_NAME)
-      load_boot_config_from_file(boot_file)
-      load_config_from_url
+    def initialize(options = {})
+      boot_file = options[:boot_file] || BOOT_FILE_NAME
+      @boot = load_boot_config_from_file(boot_file)
+      ## TODO load config from passed in file or from URL
+      @config = load_config_from_url
     end
 
     def load_boot_config_from_file(boot_file = BOOT_FILE_NAME)
-      @boot = JSON.parse(IO.read(boot_file))
+      JSON.parse(IO.read(boot_file))
     end
 
     def load_config_from_url(url = @boot["config_source"]["config_url"])
-      @config = JSON.parse(Net::HTTP.get(URI(url)))
+      JSON.parse(Net::HTTP.get(URI(url)))
     end
   end # Configuration
 
@@ -52,7 +56,8 @@ module Thermo
   class Thermostat
     # exposes the configuration object
     attr_accessor :configuration
-    # allows testing harness to initiate debug breakpoints
+    # allows testing harness to initiate debug breakpoints and other 
+    # communications with test harness
     attr_accessor :debug
     def dbg
       debugger if self.debug
@@ -74,13 +79,19 @@ module Thermo
     attr_reader :goal_temp_f
     
     # start up by loading our configuration
-    def initialize
+    def initialize(options = {})
       # turn heater off as first initializing step
       # this is to protect against a recurring crash
       # leaving the heater in the permenantly on condition
+raise Thermo::InitializeFailed if options[:throw]
       set_heater_state(false)
-      @configuration = Configuration.new
-      setup_safety_config
+      begin
+        @configuration = Configuration.new
+        setup_safety_config
+      rescue Exception
+        set_heater_state(false)
+        raise Thermo::InitializeFailed.new("Initialize failed but heater was turned off.")
+      end
     end
     
     def setup_safety_config
@@ -255,21 +266,22 @@ module Thermo
 
     # send true to turn heater on, false to turn heater off
     def set_heater_state(turn_heater_on, new_goal_temp_f = nil)
-      # Only change the heater to on if safety parameters are satisfied
-      if turn_heater_on && self.heater_safe_to_turn_on?
-        raise(Thermo::InvalidTemperature, "Temp must be supplied to set_heater_state in order to turn on heater")if !new_goal_temp_f        
-        self.heater_on = true
-        set_heater_last_on_time
-        self.goal_temp_f = new_goal_temp_f
-      elsif !turn_heater_on
+      if !turn_heater_on
         self.heater_on = false
         ## TODO Remove this?
         reset_heater_last_on_time
         self.goal_temp_f = new_goal_temp_f
+      # Only change the heater to on if safety parameters are satisfied
+      elsif turn_heater_on && self.heater_safe_to_turn_on?
+        raise(Thermo::InvalidTemperature, "Temp must be supplied to set_heater_state in order to turn on heater")if !new_goal_temp_f        
+        self.heater_on = true
+        set_heater_last_on_time
+        self.goal_temp_f = new_goal_temp_f
       else
-        # this state occurs when heater is out of safety params
+        # this state occurs when heater is unsafe to turn on
+        # due to hysteresis, over temp, or running too long
         # or unhandled in some other way
-        # Heater must be turned off when unhandled
+        # Heater *must* be turned off when unhandled
         # We don't reset heater_last_on_time because hysteresis
         # and max runtime safety limits depend on that calculation
 
