@@ -191,6 +191,102 @@ class TestThermoClient < Minitest::Test
 
 # Functional test: Test sequences of heater on, achieving goal temp, heater off, temp cool off, heater on, etc
 
+  # verify that "hold" function sets heater to a set goal and turns heater 
+  # on/off correctly
+  def test_immediate_on_function
+    # Testing scenario:
+    #   Descr: Load config from URL and be in daily config mode.
+    #          Then we switch to immediate mode and check that behavior changes
+    #   Time: 6/30/15 5:32 pm
+    #   Room temp: 49
+    #   Initial Heater state: off
+    #   Outcomes: Heater should be on
+    #   Goal temp: 62 (10am-6pm)
+    thermostat = Thermo::Thermostat.new
+    cur_time = Chronic.parse("6/30/15 5:32 pm")
+    cur_temp = 49
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert_heater_state_time({:heater_on => false, :last_on_time => nil}, thermostat)
+    assert thermostat.heater_safe_to_turn_on?
+    thermostat.process_schedule
+    assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
+    assert_equal 62, thermostat.goal_temp_f
+
+    # change operation_mode to immediate 
+    # verify that heater turns off
+    thermostat.configuration.config["operation_mode"] = "immediate"
+    last_on_time = cur_time
+    cur_time = Chronic.parse("6/30/15 5:40 pm")
+    cur_temp = 52
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert thermostat.heater_safe_to_turn_on?
+    # heater should turn off, and new goal temp should be 44
+    thermostat.process_schedule
+    assert_heater_state_time({:heater_on => false, :last_on_time => last_on_time}, thermostat)
+    assert !thermostat.goal_temp_f
+
+    # move immediate/hold temp up to 66 and verify the heater goes on
+    last_on_time = cur_time
+    cur_time = Chronic.parse("6/30/15 5:47 pm")
+    cur_temp = 50
+    new_goal_temp_f = 66
+    thermostat.configuration.config["immediate"]["temp_f"] = new_goal_temp_f
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert thermostat.heater_safe_to_turn_on?
+    # heater should turn off, and new goal temp should be 44
+    thermostat.process_schedule
+    assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
+    assert_equal new_goal_temp_f, thermostat.goal_temp_f
+    
+  end
+
+  # Heater should not turn on under any circumstances when "operation_mode" in 
+  # config file is "off"
+  def test_immediate_off_function
+    # Testing scenario:
+    #   Descr: Load config from URL and be in daily config mode.
+    #          Then we switch to "off" mode and check that heater is off under 
+    #          all circumstances
+    #   Time: 2/22/19 8:32 pm
+    #   Room temp: 69
+    #   Initial Heater state: off
+    #   Outcomes: Heater should be on
+    #   Goal temp: 70 (7pm-11pm)
+    thermostat = Thermo::Thermostat.new
+    cur_time = Chronic.parse("2/22/19 8:32 pm")
+    cur_temp = 69
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert_heater_state_time({:heater_on => false, :last_on_time => nil}, thermostat)
+    assert thermostat.heater_safe_to_turn_on?
+    thermostat.process_schedule
+    assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
+    assert_equal 70, thermostat.goal_temp_f
+
+    # change operation_mode to off
+    # verify that heater turns off
+    thermostat.configuration.config["operation_mode"] = "off"
+    last_on_time = cur_time
+    cur_time = Chronic.parse("2/22/19 8:39 pm")
+    cur_temp = 69
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert thermostat.heater_safe_to_turn_on?
+    # heater should turn off, and new goal temp should be nil
+    thermostat.process_schedule
+    assert_heater_state_time({:heater_on => false, :last_on_time => last_on_time}, thermostat)
+    assert !thermostat.goal_temp_f
+
+    # move room temp up to 71 and verify the heater stays off
+    cur_time = Chronic.parse("2/22/19 8:45 pm")
+    cur_temp = 71
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert thermostat.heater_safe_to_turn_on?
+    # heater should remain off, and new goal temp should be nil
+    thermostat.process_schedule
+    assert_heater_state_time({:heater_on => false, :last_on_time => last_on_time}, thermostat)
+    assert !thermostat.goal_temp_f
+  end
+  
+  
   def test_heater_gets_good_boot_configuration
     thermostat = Thermo::Thermostat.new
     assert_equal 59, thermostat.max_heater_on_time_minutes
@@ -336,8 +432,8 @@ class TestThermoClient < Minitest::Test
     assert_equal cur_temp, thermostat.current_temp_f, "Thermostat temp should be #{cur_temp.inspect} but was #{thermostat.current_temp_f}"
   end
   
-  assert_nothing_raised(&proc)
-  
+  def assert_nothing_raised(&proc)
+    assert false, "Not implemented yet"
   end
   
 end

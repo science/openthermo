@@ -30,13 +30,16 @@ module Thermo
   # It then uses that booter to load a more detailed configuration file via URL
   class Configuration
     attr_accessor :boot, :config
+    attr_reader :using_url_for_config
     
     # load our default settings from the boot.json file
+    # load main config file from url specified in boot file
     def initialize(options = {})
       boot_file = options[:boot_file] || BOOT_FILE_NAME
       @boot = load_boot_config_from_file(boot_file)
       ## TODO load config from passed in file or from URL
-      @config = load_config_from_url
+      @using_url_for_config = !!options[:config]
+      @config = options[:config] || load_config_from_url
     end
 
     def load_boot_config_from_file(boot_file = BOOT_FILE_NAME)
@@ -83,14 +86,13 @@ module Thermo
       # turn heater off as first initializing step
       # this is to protect against a recurring crash
       # leaving the heater in the permenantly on condition
-raise Thermo::InitializeFailed if options[:throw]
       set_heater_state(false)
       begin
-        @configuration = Configuration.new
+        @configuration = Configuration.new(options)
         setup_safety_config
-      rescue Exception
+      rescue Exception => e
         set_heater_state(false)
-        raise Thermo::InitializeFailed.new("Initialize failed but heater was turned off.")
+        raise Thermo::InitializeFailed.new("Heater init failed but heater was turned off. Original class: #{e.class.to_s}. Msg: #{e.message}. #{e.backtrace}")
       end
     end
     
@@ -144,25 +146,49 @@ raise Thermo::InitializeFailed if options[:throw]
       #TODO hardware call to obtain temperature reading
       @override_current_temp_f # || get_hw_temp_f
     end
-    
 
     # we process the schedule periodically - this function uses current
     # time & temp, and compares to scheduled time and temp to determine
     # the action it should take
     def process_schedule
-      # error out if we don't know how to handle the schedule file
-      raise UnknownSchedule, "Unknown schedule found in configuration file. Currently we only handle 'daily_schedule' type" unless self.configuration.config["daily_schedule"]
+      schedule_mode = self.configuration.config["operation_mode"] || "Undefined"
+      schedule = self.configuration.config[schedule_mode] || raise(UnknownSchedule.new("'operation_mode' value in config does not reference an existing configuration in the config file."))
 
-      # TODO safety checks
-      # heater should not run more than max heater on time
-      # heater should not run hotter than max temp
-      
+      case schedule_mode
+        when "daily_schedule"
+          process_daily_schedule(schedule)
+        when "immediate"
+          process_immediate_schedule(schedule)
+        when "off" 
+          set_heater_state(false)
+        else # error out if we don't know how to handle the schedule file
+          raise UnknownSchedule.new("Unknown schedule found in configuration file. Schedule provided: \"#{schedule_mode}\"")
+      end
+    end
+
+    def process_immediate_schedule(schedule)
+      heater_state_modified = false
+      new_goal_temp_f = schedule["temp_f"]
+      if new_goal_temp_f > self.current_temp_f
+        set_heater_state(true, new_goal_temp_f)
+        heater_state_modified = true      
+      end
+      # if we haven't modified the heater state that means we 
+      # did not find a matching time window and so should turn
+      # the heater off (a gap in the time window = heater off)
+      if !heater_state_modified
+        set_heater_state(false) 
+      end
+    end
+
+    def process_daily_schedule(schedule)
       # compare current time/temp with config specified in file
       heater_state_modified = false
-      times_of_op = self.configuration.config["daily_schedule"]["daily"]["times_of_operation"]
+      times_of_op = schedule["times_of_operation"]
       times_of_op.each do |time_window|
         start_time = self.parse_time(time_window["start"])
         end_time = self.parse_time(time_window["stop"])
+        # minor hack to make config file more intuitive
         if end_time == self.parse_time("12:00 am")
           end_time = self.parse_time("tomorrow at 12:00 am")
         end
@@ -185,6 +211,7 @@ raise Thermo::InitializeFailed if options[:throw]
         set_heater_state(false) 
       end
     end
+
 
     def goal_temp_f
       @goal_temp_f
@@ -254,7 +281,7 @@ raise Thermo::InitializeFailed if options[:throw]
     end
 
     # Returns true if all safety parameters for heater operation
-    # allow heater to be on. 
+    # allow heater to be on. True = "heater safe to operate"
     # NOTE: If this returns false, the heater MUST be turned off
     # It MUST NOT simply remain in the state it was in.
     def heater_safe_to_turn_on?
@@ -356,16 +383,15 @@ url and then hang out on config-url-watch will update immediately upon remote fi
 
 [instance-name].json
 {
-  "immediate-operation": ["on"|"off"|other value/null="scheduled"],
-  "scheduled-operation-mode": ["daily"|"weekly"|"workweekly"],
-  "daily-schedule": {
-    ["daily"]: {"times-of-operation": [
+  "operation_mode": ["daily_schedule"|"weekly_schedule"|"workweekly_schedule"|"immediate"|"off"],
+  "daily_schedule": {
+    "times-of-operation": [
       {"start": "6:30 am", "stop": "10:00 am", "temp-f": 68},
       {"start": "10:00 am", "stop": "6:00 pm", "temp-f": 62},
       {"start": "7:00 pm", "stop": "11:00 pm", "temp-f": 70},
       {"start": "11:00 pm", "stop": "5:30 am", "temp-f": 62}
-  ]}},
-  "weekly-schedule": {
+  ]},
+  "weekly_schedule": {
     ["monday".."sunday"]: {"times-of-operation": [
       {"start": "6:30 am", "stop": "10:00 am", "temp-f": 68},
       {"start": "10:00 am", "stop": "6:00 pm", "temp-f": 62},
@@ -379,6 +405,8 @@ url and then hang out on config-url-watch will update immediately upon remote fi
       {"start": "7:00 pm", "stop": "11:00 pm", "temp-f": 70},
       {"start": "11:00 pm", "stop": "5:30 am", "temp-f": 62}
   ]}},
+  "immediate": {"temp_f": 62},
+  "off" : "off"
 }
 
 schedule notes:
