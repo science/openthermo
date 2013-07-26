@@ -18,13 +18,29 @@ module Thermo
   class ConfigFileNotFound < ThermoError; end
   class UnknownSchedule < ThermoError; end
   class InvalidTemperature < ThermoError; end
+  class HWTempRead < ThermoError; end
   class InitializeFailed < ThermoError; end
+  class UnknownRunMode < ThermoError; end
   
   BOOT_FILE_NAME = "boot.json"
   HYSTERESIS_DURATION_DEFAULT = "5 minutes"
   MAX_OPERATING_TIME__MINUTES_DEFAULT = "60"
   MAX_TEMP_F_DEFAULT = 80
 
+  # RUN_MODE determines if we are in a testing environment
+  # primarily this is used to manage shelling out to run command
+  # line commands that don't exist in testing environments
+  RUN_MODE = ENV["thermo_run_mode"] || "production"
+
+  # Heater hardware commands
+  INITIALIZE_HEATER_HARDWARE = [
+     {:cmd => "gpio", :args => ["mode 0 out"]}, 
+     {:cmd => "sudo", :args => ["modprobe", "w1-gpio"]}, 
+     {:cmd => "sudo", :args => ["modprobe", "w1-therm"]}]
+  HEATER_ON_CMD = [{:cmd => "gpio", :args=>["write", "0", "1"]}]
+  HEATER_OFF_CMD = [{:cmd => "gpio", :args=>["write", "0", "0"]}]
+
+  
   # Configuration class is responsible for loading and re-loading configurations
   # It starts by loading the boot configuration from disk
   # It then uses that booter to load a more detailed configuration file via URL
@@ -37,7 +53,6 @@ module Thermo
     def initialize(options = {})
       boot_file = options[:boot_file] || BOOT_FILE_NAME
       @boot = load_boot_config_from_file(boot_file)
-      ## TODO load config from passed in file or from URL
       @using_url_for_config = !!options[:config]
       @config = options[:config] || load_config_from_url
     end
@@ -75,25 +90,58 @@ module Thermo
     attr_accessor :hysteresis_duration
     
     # used for testing - if set, we use this value instead of system values
-    attr_accessor :override_current_time
+    attr_reader :override_current_time
     attr_accessor :override_current_temp_f
     attr_accessor :override_relay_state
     attr_reader :heater_last_on_time
     attr_reader :goal_temp_f
+    
+    #holds the last set of commands executed on the command line
+    attr_accessor :command_line_history
+    # holds a temp root folder for testing - allows
+    # us to read temperature files from non-root folder
+    # during tests
+    attr_accessor :test_hw_temp_root_dir
     
     # start up by loading our configuration
     def initialize(options = {})
       # turn heater off as first initializing step
       # this is to protect against a recurring crash
       # leaving the heater in the permenantly on condition
+      self.command_line_history = {}
       set_heater_state(false)
+      self.test_hw_temp_root_dir = ""
       begin
         @configuration = Configuration.new(options)
+        set_current_time
         setup_safety_config
+        initialize_hardware
       rescue Exception => e
         set_heater_state(false)
         raise Thermo::InitializeFailed.new("Heater init failed but heater was turned off. Original class: #{e.class.to_s}. Msg: #{e.message}. #{e.backtrace}")
       end
+    end
+    
+	# set up hardware ports to communicate with relay and thermostat
+    def initialize_hardware
+      self.execute_system_commands(INITIALIZE_HEATER_HARDWARE)
+    end
+    
+    # Receives an array of hashes which represent command line instructions
+    # Format: [{:cmd => 'command', :args => ["arg1","arg2"...]},...]
+	def execute_system_commands(cmds)
+    if RUN_MODE == "testing"
+        # do nothing on the command line in test mode
+	  else # assume RUN_MODE == 'production' in all other cases
+        cmds.each do |cmd|
+          Kernel.system(cmd[:cmd],*cmd[:args])
+        end
+    end
+    self.add_executed_cmds_to_history(cmds)
+	end
+  
+    def add_executed_cmds_to_history(cmds)
+      self.command_line_history[self.current_time] = cmds
     end
     
     def setup_safety_config
@@ -111,8 +159,22 @@ module Thermo
       end
     end
 
+    def override_current_time=(time)
+      @override_current_time = time
+      set_current_time
+    end
+
+    # we don't let the clock tick while the application is running
+    # we get the current time when we init, or process a schedule
+    # during the processing, we keep the time static, to prevent
+    # unpredictable errors such if the system clock ticked over 
+    # a schedule boundary during processing
+    def set_current_time
+      @internal_time = (self.override_current_time || Time::now)
+    end
+    
     def current_time
-      @override_current_time || Time::now
+      @internal_time
     end
 
     def current_hour_min_sec_str
@@ -141,16 +203,12 @@ module Thermo
       retval
     end
     
-    # assigns hardware-obtained temperature in farenheit to internal state variable
-    def current_temp_f
-      #TODO hardware call to obtain temperature reading
-      @override_current_temp_f # || get_hw_temp_f
-    end
-
     # we process the schedule periodically - this function uses current
     # time & temp, and compares to scheduled time and temp to determine
     # the action it should take
     def process_schedule
+      self.set_current_time
+      self.command_line_history = {}
       schedule_mode = self.configuration.config["operation_mode"] || "Undefined"
       schedule = self.configuration.config[schedule_mode] || raise(UnknownSchedule.new("'operation_mode' value in config does not reference an existing configuration in the config file."))
 
@@ -240,9 +298,53 @@ module Thermo
       retval
     end
 
+    # assigns hardware-obtained temperature in farenheit to 
+    # internal state variable
+    def current_temp_f
+      cur_temp_f = nil
+      if RUN_MODE == "testing" && @override_current_temp_f
+          cur_temp_f = @override_current_temp_f # return override temp value in test mode
+      else # assume RUN_MODE == 'production' in all other cases
+          cur_temp_f = get_hw_temp_f
+      end
+      cur_temp_f
+    end
+    
+    def get_hw_temp_f
+      #TODO get correct C to F conversion
+      (get_hw_temp_c*3.125)
+    end
+    
+    def get_hw_temp_c
+      base_folder = File::join(@test_hw_temp_root_dir,"/sys/bus/w1/devices/28-*")
+      folders = Dir[base_folder]
+      if folders.size != 1
+        raise Thermo::HWTempRead.new("Too many or zero temperature folders in get_hw_temp_c: "+folders.join(" :: "))
+      end    
+      temp_file = File::join(folders.first, "w1_slave")
+      files = Dir[temp_file]
+      if files.size != 1
+        raise Thermo::HWTempRead.new("Too many or zero temperature files in get_hw_temp_c: "+files.join(" :: "))
+      end    
+      temperature = nil
+      File::open(files.first, "r") do |file|
+        if !file.gets.match(/YES/)
+          raise Thermo::HWTempRead.new("Temperature file missing 'YES' value. Cannot (should not) read temp.")
+        end
+        # temp is in hw file as "N+.NNN"
+        temperature = file.gets.match(/t=([0-9]+)/)[1]
+      end
+      # return a float, assumes temperature should be parsed: /[0-9]+.[0-9][0-9][0-9]/
+      temperature.insert(temperature.size-3,".").to_f
+    end
+    
     def heater_on=(state)
+      if state
+        self.execute_system_commands(HEATER_ON_CMD)
+      else
+        self.execute_system_commands(HEATER_OFF_CMD)
+      end
       @heater_on_state = state
-      # TODO add hardware call to set heater relay to on or off
     end
 
     # Returns true if the measured temp is higher than safety value

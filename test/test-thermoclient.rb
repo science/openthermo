@@ -1,5 +1,9 @@
 gem "minitest"
 
+ENV["thermo_run_mode"] = 'testing'
+#ENV["thermo_run_mode"] = 'production'
+
+
 require 'minitest/autorun'
 require '../thermoclient.rb'
 require 'fileutils'
@@ -18,6 +22,46 @@ INVALID_MISSING_ELEMENT_BOOT_JSON_ORIG = 'invalid-missing-elements-thermo-boot.j
 # This is done by setup/teardown routines below
 # This file should NOT exist in between testing sessions
 CONFIG_JSON = 'backbedroom.json'
+
+DIR_ROOT =(rand*10000000).to_i
+DIR_THERM = "./sys/bus/w1/devices/28-#{DIR_ROOT}"
+class ThermoTestError < RuntimeError; end
+
+class TestThermostatReads < Minitest::Test
+  def setup
+    FileUtils.cp(VALID_BOOT_JSON_ORIG, Thermo::BOOT_FILE_NAME)
+    FileUtils.cp(VALID_CONFIG_JSON_ORIG, CONFIG_JSON)
+    if Dir::pwd == "/" || Dir::pwd.match(/[a-z]:\/$/)
+      raise ThermoTestError.new("Can't run this test from root folder!!")
+    end
+    FileUtils::mkdir_p(DIR_THERM)
+  end
+  
+  def teardown
+    if Dir::pwd == "/" || Dir::pwd.match(/[a-z]:\/$/)
+      raise ThermoTestError.new("Can't run this test from root folder!!")
+    end
+    FileUtils::rm_rf(DIR_THERM)
+    FileUtils.safe_unlink(Thermo::BOOT_FILE_NAME)
+    FileUtils.safe_unlink(CONFIG_JSON)
+    raise Thermo::ConfigFileNotFound if File.exist?(Thermo::BOOT_FILE_NAME)
+    raise Thermo::ConfigFileNotFound if File.exist?(CONFIG_JSON)
+  end
+
+  # test that thermostat reading commands are sent to hardware 
+  def test_heater_thermostat_reader
+    # TODO use a totally value thermostat input file
+    # we set up a semi-valid thermostat input file
+    # temp is set to 24.495 celsius
+    File::open(DIR_THERM+"/w1_slave", "w+") do |w1_slave|
+      w1_slave.puts("39 4393- 219392 4ds, YES")
+      w1_slave.puts("DK2 DKSJJ 59KS DK2 t=24495")
+    end
+    thermostat = Thermo::Thermostat.new
+    thermostat.test_hw_temp_root_dir = '.'
+    assert_equal 24.495, thermostat.get_hw_temp_c
+  end
+end
 
 class TestThermoClient < Minitest::Test
   def setup
@@ -43,7 +87,52 @@ class TestThermoClient < Minitest::Test
     # config = Thermo::Configuration.new(options)
   end
 
+  def test_run_mode_is_testing
+    assert_equal "testing", ENV["thermo_run_mode"]
+    assert_equal "testing", Thermo::RUN_MODE
+  end
+
 ## Operating tests
+
+  # we verify (as best as possible) that all the hardware 
+  # initialization commands would be sent to the
+  # command line correctly during production without actually
+  # sending them to the command line
+  def test_hardware_initializes_correctly
+    thermostat = Thermo::Thermostat.new
+    cur_time = thermostat.current_time
+    expected_cmds = {cur_time => Thermo::INITIALIZE_HEATER_HARDWARE}
+    cmds = thermostat.command_line_history
+	  cmds.delete(nil)
+    assert_equal expected_cmds, cmds
+  end
+
+  # verify that during heater operation correct commands are
+  # sent to hardware via command line
+  def test_heater_sends_hardware_commands_correctly
+    # heater should be off and stay off, relay command "off" sent
+    thermostat = Thermo::Thermostat.new
+    cur_time = Chronic.parse("1/19/25 4:31 am")
+    cur_temp = 65
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert_heater_state_time({:heater_on => false, :last_on_time => nil}, thermostat)
+    assert thermostat.heater_safe_to_turn_on?
+    thermostat.process_schedule
+    assert_heater_state_time({:heater_on => false, :last_on_time => nil}, thermostat)
+    assert_equal({cur_time => Thermo::HEATER_OFF_CMD}, thermostat.command_line_history)
+    assert_equal 62, thermostat.goal_temp_f
+    # heater should turn on w/hardware
+    cur_temp = 61
+    cur_time = Chronic.parse("1/19/25 4:37:05 am")
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert thermostat.heater_safe_to_turn_on?
+    thermostat.process_schedule
+    assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
+    assert_equal Thermo::HEATER_ON_CMD, thermostat.command_line_history[cur_time]
+    assert_equal 62, thermostat.goal_temp_f
+  end
+
+  
 ## Test operating limits control from thermostat
 
 # Test invalid files and inputs
