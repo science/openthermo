@@ -27,6 +27,7 @@ var fs = require('fs');
 var util = require('util');
 var StringDecoder = require('string_decoder').StringDecoder;
 var dbg = require('./utils').debuggerMsg;
+var getDateTimeStr = require('./utils').getDateTimeStr;
 
 // constants
 var FILE_WATCH_TIMEOUT_MSEC = 12*60*60*1000 // each file watch process should wait no longer than 12 hours before giving up and returning nothing
@@ -55,7 +56,7 @@ var getFileOnChange = function (event,filename){
         // get file contents
         var data = fs.readFileSync(filename, {"encoding":"utf8"});
         var response = files[filename].res;
-        dbg('Returning changed file contents: '+filename);
+        dbg(getDateTimeStr()+' File: '+filename);
         response.write(data);
         response.end();
       });
@@ -100,7 +101,7 @@ function getFileResponse(req, res, next) {
   filename = req.params.name;
   if (filename && fs.existsSync(filename)) {
     var data = fs.readFileSync(filename, {"encoding":"utf8"});
-    dbg('Returning file contents: '+filename);
+    dbg(getDateTimeStr()+' - Returning file: '+filename);
     res.write(data);
     res.end();
   }
