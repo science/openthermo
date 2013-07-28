@@ -434,9 +434,18 @@ class TestThermoClient < Minitest::Test
     assert_equal 78, thermostat.goal_temp_f
     
     
-    #TODO
     #Verify that if we set heater mode to off and temp to 70
-    #heater turns off even though temp_override should turn it on
+    #heater turns off even though temp_override should turn it on (goal of 72)
+    last_on_time = cur_time
+    cur_time = Chronic.parse("9/14/29 10:37 am")
+    cur_temp = 70
+    thermostat.configuration.config["operation_mode"] = "off"
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert thermostat.heater_safe_to_turn_on?
+    thermostat.process_schedule
+    assert_heater_state_time({:heater_on => false, :last_on_time => last_on_time}, thermostat)
+    assert_equal nil, thermostat.goal_temp_f
+    
   end
 
   # verify that "hold" function sets heater to a set goal and turns heater 
