@@ -3,7 +3,6 @@ gem "minitest"
 ENV["thermo_run_mode"] = 'testing'
 #ENV["thermo_run_mode"] = 'production'
 
-
 require 'minitest/autorun'
 require '../thermoclient.rb'
 require 'fileutils'
@@ -12,9 +11,10 @@ require 'debugger'
 
 VALID_BOOT_JSON_ORIG = 'valid-thermo-boot.json.orig'
 VALID_CONFIG_JSON_ORIG = 'backbedroom.json.orig'
+VALID_EXTREME_TEMP_CONFIG_JSON_ORIG = 'backbedroom_hot.json.orig'
+VALID_TEMP_OVERRIDE_CONFIG_JSON_ORIG = 'backbedroom-override.json.orig'
 INVALID_MALFORMED_CONFIG_JSON_ORIG = 'invalid-malformed-backbedroom.json.orig'
 INVALID_MISSING_ELEMENT_CONFIG_JSON_ORIG = 'invalid-missing-element-backbedroom.json.orig'
-VALID_EXTREME_TEMP_CONFIG_JSON_ORIG = 'backbedroom_hot.json.orig'
 INVALID_MALFORMED_BOOT_JSON_ORIG = 'invalid-malformed-thermo-boot.json.orig'
 INVALID_MISSING_ELEMENT_BOOT_JSON_ORIG = 'invalid-missing-elements-thermo-boot.json.orig'
 # this file is made available to a webserver at the path specified in 
@@ -279,6 +279,165 @@ class TestThermoClient < Minitest::Test
 ## Test valid operating behavior
 
 # Functional test: Test sequences of heater on, achieving goal temp, heater off, temp cool off, heater on, etc
+
+  # verify that "temp_override" function sets heater to a set goal and turns heater 
+  # on/off correctly. Specifically the temporary goal should only apply during
+  # the time window when the override is set. Thermostat should return to scheduled
+  # weekday operation when override time is no longer within current time window
+  def test_temp_override_on_function
+    # Testing scenario:
+    #   Descr:  Load override config from URL and be in normal weekday mode
+    #           B/c time window for override not yet relevant
+    #           Then we switch to override mode and check that behavior changes
+    #           Then we advance the clock and verify override is still in effect
+    #           Until the clock passes the window
+    #   Time: 9/14/29 9:50 am
+    #   Room temp: 49
+    #   Temp_override: 9/14/29 10:15am
+    #   Temp_override temp_f: 72
+    #   Initial Heater state: off
+    #   Outcomes: Heater should be on
+    #   Goal temp: 68 (6:30am - 10am)
+    FileUtils.cp(VALID_TEMP_OVERRIDE_CONFIG_JSON_ORIG, CONFIG_JSON)
+    thermostat = Thermo::Thermostat.new
+    cur_time = Chronic.parse("9/14/29 9:50 am")
+    cur_temp = 49
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert_heater_state_time({:heater_on => false, :last_on_time => nil}, thermostat)
+    assert thermostat.heater_safe_to_turn_on?
+    thermostat.process_schedule
+    assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
+    assert_equal 68, thermostat.goal_temp_f
+
+    # advance the clock to 10:01
+    # set heater temp to 65
+    # verify heater turns off
+    last_on_time = cur_time
+    cur_time = Chronic.parse("9/14/29 10:01 am")
+    cur_temp = 65
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert thermostat.heater_safe_to_turn_on?
+    # heater should turn off, and new goal temp should be 62
+    thermostat.process_schedule
+    assert_heater_state_time({:heater_on => false, :last_on_time => last_on_time}, thermostat)
+    assert_equal 62, thermostat.goal_temp_f
+
+    # advance clock to 10:15am
+    # leave room temp at 65
+    # schedule wants room at 62
+    # temp_override wants room at 72
+    # verify heater turns on b/c temp_override should be active
+    cur_time = Chronic.parse("9/14/29 10:15 am")
+    cur_temp = 65
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert thermostat.heater_safe_to_turn_on?
+    # heater should turn off
+    thermostat.process_schedule
+    assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
+    assert_equal 72, thermostat.goal_temp_f
+
+    # advance clock to 10:21:02am
+    # bring room temp to 72.1
+    # schedule wants room at 62
+    # temp_override wants room at 72
+    # verify heater turns off b/c temp_override correctly turns it off
+    last_on_time = cur_time
+    cur_time = Chronic.parse("9/14/29 10:21:02 am")
+    cur_temp = 72.1
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert thermostat.heater_safe_to_turn_on?
+    # heater should turn off
+    thermostat.process_schedule
+    assert_heater_state_time({:heater_on => false, :last_on_time => last_on_time}, thermostat)
+    assert_equal 72, thermostat.goal_temp_f
+
+    # advance clock to 5:51pm
+    # bring room temp to 71.9
+    # schedule wants room at 62
+    # temp_override wants room at 72
+    # verify heater turns on b/c temp_override correctly turns it on
+    cur_time = Chronic.parse("9/14/29 5:51 pm")
+    cur_temp = 71.9
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert thermostat.heater_safe_to_turn_on?
+    # heater should turn on
+    thermostat.process_schedule
+    assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
+    assert_equal 72, thermostat.goal_temp_f
+
+    # advance clock to 6:12pm
+    # bring room temp to 75
+    # schedule wants heater off due to schedule gap
+    # temp_override wants room at 72
+    # verify heater turns off
+    last_on_time = cur_time
+    cur_time = Chronic.parse("9/14/29 6:12 pm")
+    cur_temp = 75
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert thermostat.heater_safe_to_turn_on?
+    # heater should turn on
+    thermostat.process_schedule
+    assert_heater_state_time({:heater_on => false, :last_on_time => last_on_time}, thermostat)
+    assert_equal nil, thermostat.goal_temp_f
+
+    # advance clock to 7:01pm
+    # bring room temp to 60
+    # schedule wants room at 70
+    # force temp_override to want room at 55
+    # verify heater turns on b/c regular schedule turns it on
+    cur_time = Chronic.parse("9/14/29 7:01pm")
+    cur_temp = 60
+    thermostat.configuration.config["temp_override"]["temp_f"] = 55
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert thermostat.heater_safe_to_turn_on?
+    # heater should turn on
+    thermostat.process_schedule
+    assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
+    assert_equal 70, thermostat.goal_temp_f
+  end
+
+  def test_temp_override_on_function_corner_cases
+    # Testing scenario:
+    #   Descr:  Load override config from URL and be in normal weekday mode
+    #           B/c time window for override not yet relevant
+    #           Then we switch to override mode and check that behavior changes
+    #           Then we advance the clock and verify override is still in effect
+    #           Until the clock passes the window
+    #   Time: 9/14/29 9:50 am
+    #   Room temp: 49
+    #   Temp_override: 9/14/29 10:15am
+    #   Temp_override temp_f: 72
+    #   Initial Heater state: off
+    #   Outcomes: Heater should be on
+    #   Goal temp: 68 (6:30am - 10am)
+    FileUtils.cp(VALID_TEMP_OVERRIDE_CONFIG_JSON_ORIG, CONFIG_JSON)
+    thermostat = Thermo::Thermostat.new
+    cur_time = Chronic.parse("9/14/29 9:50 am")
+    cur_temp = 49
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert_heater_state_time({:heater_on => false, :last_on_time => nil}, thermostat)
+    assert thermostat.heater_safe_to_turn_on?
+    thermostat.process_schedule
+    assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
+    assert_equal 68, thermostat.goal_temp_f
+    
+    #TODO
+    #Verify that if we set heater mode to immediate, goal temp to 75, temp to 73
+    #heater turns on even though temp_override should turn it off
+    cur_time = Chronic.parse("9/14/29 10:28 am")
+    cur_temp = 73
+    thermostat.configuration.config["operation_mode"] = "immediate"
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert thermostat.heater_safe_to_turn_on?
+    thermostat.process_schedule
+    assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
+    assert_equal 78, thermostat.goal_temp_f
+    
+    
+    #TODO
+    #Verify that if we set heater mode to off and temp to 70
+    #heater turns off even though temp_override should turn it on
+  end
 
   # verify that "hold" function sets heater to a set goal and turns heater 
   # on/off correctly

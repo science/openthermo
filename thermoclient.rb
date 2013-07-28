@@ -12,7 +12,6 @@ require 'chronic'
 # This is to protect against unexpected exceptions
 # that might leave the heater turned on
 
-
 module Thermo
   class ThermoError < RuntimeError; end
   class ConfigFileNotFound < ThermoError; end
@@ -239,10 +238,14 @@ module Thermo
       end
     end
 
+    # Finds time window within config file that corresponds to current time
+    # Finds goal temp for that window
+    # Turns heater on/off depending on if goal temp is gt/lt than actual temp
     def process_daily_schedule(schedule)
       # compare current time/temp with config specified in file
       heater_state_modified = false
       times_of_op = schedule["times_of_operation"]
+      new_goal_temp_f = nil
       times_of_op.each do |time_window|
         start_time = self.parse_time(time_window["start"])
         end_time = self.parse_time(time_window["stop"])
@@ -250,27 +253,56 @@ module Thermo
         if end_time == self.parse_time("12:00 am")
           end_time = self.parse_time("tomorrow at 12:00 am")
         end
-        new_goal_temp_f = time_window["temp_f"]
+        # this handles override temperature settings from user (via config)
+        if temp_override_active_for_time_window?(:end_time => end_time, :start_time => start_time)
+          new_goal_temp_f = self.temp_override_goal_temp_f
+          if self.temp_override_goal_temp_f && self.current_temp_f < self.temp_override_goal_temp_f
+            set_heater_state(true, self.temp_override_goal_temp_f)
+            heater_state_modified = true
+            break
+          end
+        end
+        # this handles regularly scheduled temp settings from config
         if (start_time <= current_time) && (end_time >= current_time)
+          new_goal_temp_f = time_window["temp_f"] if !new_goal_temp_f
           if self.current_temp_f < new_goal_temp_f
             set_heater_state(true, new_goal_temp_f)
             heater_state_modified = true
             break
-          else
-            set_heater_state(false, new_goal_temp_f)
-            heater_state_modified = true
           end
         end
-      end
+      end # times_of_op.each do...
       # if we haven't modified the heater state that means we 
       # did not find a matching time window and so should turn
       # the heater off (a gap in the time window = heater off)
       if !heater_state_modified
-        set_heater_state(false) 
+        set_heater_state(false, new_goal_temp_f)
       end
     end
 
-
+    # temp_override causes heater to seek new goal temp ignoring existing schedule
+    # it only applies within the window of an existing schedule
+    # e.g., Schedule window 5/15/22 6:30am-10:00am; goal_f=66. temp_override point 6/15/22 9:15am; goal_f=72
+    #   If current time is <9:15am OR >10:00am, regular schedule applies, otherwise temp_override goal_f applies
+    def temp_override_active_for_time_window?(options)
+      end_time = options[:end_time]
+      start_time = options[:start_time]
+      override_start_time = self.temp_override_start_time
+      cur_time = self.current_time
+      # we have to be inside the current time window for temp_override to be possible for this window
+      override_start_time && (cur_time >= start_time) && (cur_time >= override_start_time) && (cur_time <= end_time) && (override_start_time >= start_time) && (override_start_time <= end_time)
+    end
+    
+    def temp_override_start_time
+      if self.configuration.config["temp_override"]
+        Chronic.parse(self.configuration.config["temp_override"]["date-time"])
+      end
+    end
+    
+    def temp_override_goal_temp_f
+      self.configuration.config["temp_override"]["temp_f"] if self.configuration.config["temp_override"]
+    end
+    
     def goal_temp_f
       @goal_temp_f
     end
@@ -508,6 +540,7 @@ url and then hang out on config-url-watch will update immediately upon remote fi
       {"start": "11:00 pm", "stop": "5:30 am", "temp-f": 62}
   ]}},
   "immediate": {"temp_f": 62},
+  "temp_override": {"date-time": "2013-07-27 23:11:20 -0000", "temp_f": 66},
   "off" : "off"
 }
 
@@ -518,6 +551,12 @@ schedule notes:
     So: 
     6:30am-9:00pm followed by 9:00pm-7:30am is the same as
     6:30am-9:00pm followed by 9:00pm-6:30am
+  temp_override: Temporarily overrides goal temp, until time window no longer overlaps with date-time
+    Override does not have an "operation_mode" - it simply overrides the existing schedule
+    Override has no effect on "operation_mode" "immediate" or "off"
+    date-time must be a specific point in time, not a parseable generic date
+  immediate: Places a permanent hold on goal temp. Heater will maintain this temp until immediate mode is disabled
+  
 */
 
 
