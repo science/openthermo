@@ -111,7 +111,6 @@ function getFileResponse(req, res, next) {
     //response.send('{"code": "FileNotFound", "message":"File specified could not be found"}');
     res.end();
   }
-
 }
 
 

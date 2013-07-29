@@ -49,7 +49,9 @@ var copyFile = function(source, target, cb) {
 }
 
 function getDateTimeStr() {
-  return new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '') + " -0000"
+  return new Date().toISOString().replace(/T/, ' ') + " -0000"
+  // .replace(/\..+/, '') <== removes milliseconds
+
   // var date = new Date();
   // var hour = date.getHours();
   // hour = (hour < 10 ? "0" : "") + hour;

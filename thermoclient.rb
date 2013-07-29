@@ -1,5 +1,6 @@
 ### REMOVE FROM PRODUCTION ###
-require 'debugger';     
+require 'debugger'     
+require 'benchmark'
 ##############################
 
 require 'json'
@@ -61,7 +62,8 @@ module Thermo
     end
 
     def load_config_from_url(url = @boot["config_source"]["config_url"])
-      JSON.parse(Net::HTTP.get(URI(url)))
+      stream = Net::HTTP.get(URI(url))
+      JSON.parse(stream)
     end
   end # Configuration
 
