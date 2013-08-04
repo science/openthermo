@@ -1,1 +1,1 @@
-@start /min "Test server" node thermo-server.js start
+@start /min "Test server" node ..\server\thermo-server.js start

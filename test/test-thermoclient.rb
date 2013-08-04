@@ -118,8 +118,8 @@ class TestThermoClient < Minitest::Test
     assert_heater_state_time({:heater_on => false, :last_on_time => nil}, thermostat)
     assert thermostat.heater_safe_to_turn_on?
     thermostat.process_schedule
-    assert_heater_state_time({:heater_on => false, :last_on_time => nil}, thermostat)
     assert_equal({cur_time => Thermo::HEATER_OFF_CMD}, thermostat.command_line_history)
+    assert_heater_state_time({:heater_on => false, :last_on_time => nil}, thermostat)
     assert_equal 62, thermostat.goal_temp_f
     # heater should turn on w/hardware
     cur_temp = 61
@@ -127,8 +127,8 @@ class TestThermoClient < Minitest::Test
     assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
     assert thermostat.heater_safe_to_turn_on?
     thermostat.process_schedule
-    assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
     assert_equal Thermo::HEATER_ON_CMD, thermostat.command_line_history[cur_time]
+    assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
     assert_equal 62, thermostat.goal_temp_f
   end
 

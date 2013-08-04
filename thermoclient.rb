@@ -1,7 +1,7 @@
-### REMOVE FROM PRODUCTION ###
-require 'debugger'     
-require 'benchmark'
-##############################
+if ENV["thermo_run_mode"] == 'testing'
+  require 'debugger'     
+  require 'benchmark'
+end
 
 require 'json'
 require 'net/http'
@@ -39,7 +39,7 @@ module Thermo
      {:cmd => "sudo", :args => ["modprobe", "w1-therm"]}]
   HEATER_ON_CMD = [{:cmd => "gpio", :args=>["write", "0", "1"]}]
   HEATER_OFF_CMD = [{:cmd => "gpio", :args=>["write", "0", "0"]}]
-
+  GET_HEATER_RELAY_STATE = [{:cmd => "gpio", :args => ["read", "0"]}]
   
   # Configuration class is responsible for loading and re-loading configurations
   # It starts by loading the boot configuration from disk
@@ -123,23 +123,29 @@ module Thermo
       end
     end
     
-	# set up hardware ports to communicate with relay and thermostat
+    # set up hardware ports to communicate with relay and thermostat
     def initialize_hardware
       self.execute_system_commands(INITIALIZE_HEATER_HARDWARE)
     end
     
     # Receives an array of hashes which represent command line instructions
     # Format: [{:cmd => 'command', :args => ["arg1","arg2"...]},...]
-	def execute_system_commands(cmds)
-    if RUN_MODE == "testing"
-        # do nothing on the command line in test mode
-	  else # assume RUN_MODE == 'production' in all other cases
-        cmds.each do |cmd|
-          Kernel.system(cmd[:cmd],*cmd[:args])
-        end
+    def execute_system_commands(cmds)
+      retval = nil
+      if RUN_MODE == "testing"
+          # do nothing on the command line in test mode
+      else # assume RUN_MODE == 'production' in all other cases
+          cmds.each do |cmd|
+            #retval = Kernel.system(cmd[:cmd],*cmd[:args])
+            retval = %x{cmd[:cmd] +" "+cmd[:args].join(" ")}
+          end
+      retval
+      end
+      # we add the cmds to history even if they weren't executed
+      # to make it easy to check for correct commands in a testing environment
+      self.add_executed_cmds_to_history(cmds)
+      retval
     end
-    self.add_executed_cmds_to_history(cmds)
-	end
   
     def add_executed_cmds_to_history(cmds)
       self.command_line_history[self.current_time] = cmds
@@ -325,35 +331,50 @@ module Thermo
       @heater_on_time = nil
     end
 
+    # returns true if the relay to the heater is closed, false if not
+    # returns nil if state is indeterminable or hw read fails
     def heater_on?
-      # TODO add hardware call to determine relay state
-      # get_hardware_heater_activity_state || _
-      retval = @heater_on_state
-      retval
+      self.get_hw_heater_state || @heater_on_state
     end
 
-    # assigns hardware-obtained temperature in farenheit to 
+    # returns nil if hardware state is indeterminable (such as during testing)
+    # returns false if heater is off
+    # returns true if heater is on
+    def get_hw_heater_state
+      relay_state = self.execute_system_commands(GET_HEATER_RELAY_STATE)
+      case relay_state.to_s
+      when "1"
+        true
+      when "0"
+        false
+      else
+        nil
+      end
+    end
+    
+    # assigns hardware-obtained temperature in fahrenheit to 
     # internal state variable
     def current_temp_f
       cur_temp_f = nil
       if RUN_MODE == "testing" && @override_current_temp_f
-          cur_temp_f = @override_current_temp_f # return override temp value in test mode
+          cur_temp_f = @override_current_temp_f # return override temp value in test mode if defined
       else # assume RUN_MODE == 'production' in all other cases
-          cur_temp_f = get_hw_temp_f
+          cur_temp_f = self.get_hw_temp_f
       end
       cur_temp_f
     end
     
+    # convert hardware celsius temp to fahrenheit
     def get_hw_temp_f
-      #TODO get correct C to F conversion
-      (get_hw_temp_c*3.125)
+      (self.get_hw_temp_c*1.8)+32
     end
     
+    # hardware specific call to obtain 1-wire thermometer reading
     def get_hw_temp_c
       base_folder = File::join(@test_hw_temp_root_dir,"/sys/bus/w1/devices/28-*")
       folders = Dir[base_folder]
       if folders.size != 1
-        raise Thermo::HWTempRead.new("Too many or zero temperature folders in get_hw_temp_c: "+folders.join(" :: "))
+        raise Thermo::HWTempRead.new("Too many or zero temperature folders (/sys/bus/w1/devices/28-*) in get_hw_temp_c: "+folders.join(" :: "))
       end    
       temp_file = File::join(folders.first, "w1_slave")
       files = Dir[temp_file]
@@ -368,7 +389,8 @@ module Thermo
         # temp is in hw file as "N+.NNN"
         temperature = file.gets.match(/t=([0-9]+)/)[1]
       end
-      # return a float, assumes temperature should be parsed: /[0-9]+.[0-9][0-9][0-9]/
+      # insert a period 3 places to the right of the end of the parsed number 99[.]999
+      # or as regex: /[0-9]+.[0-9][0-9][0-9]/
       temperature.insert(temperature.size-3,".").to_f
     end
     
@@ -565,6 +587,11 @@ schedule notes:
 /*
 Command line entries for relay and thermometer hardware
 
+Install GPIO
+  http://wiringpi.com/ for GPIO utility
+Install 1-wire tools
+  Pre-compiled into Raspberry Linux kernel?
+  
 Init for Relay
   gpio mode 0 out
 
@@ -573,7 +600,11 @@ Operation for Relay
     gpio write 0 1
   Relay open:
     gpio write 0 0
-
+  Read relay state
+    gpio read 0
+      => returns "0" if open, "1" if closed
+    
+    
 Init for Thermomometer
 sudo modprobe w1-gpio
 sudo modprobe w1-therm

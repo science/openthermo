@@ -124,6 +124,7 @@ var startServer = function (callBack) {
 
   server.listen(8080, function() {
     console.log('%s listening at %s', server.name, server.url);
+    console.log('Current working directory is %s', process.cwd());
     if (typeof process.send == 'function'){process.send('started');};
     if (typeof callBack == 'function'){callBack();};
   });
