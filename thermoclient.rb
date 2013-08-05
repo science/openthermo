@@ -57,6 +57,19 @@ module Thermo
       @config = options[:config] || load_config_from_url
     end
 
+    # returns current logging level
+    # 0 = none
+    # 10 = max
+    def log_level
+      if @config["debug"] && @config["debug"]["log_level"]
+        @config["debug"]["log_level"]
+      elsif @boot["debug"] && @boot["debug"]["log_level"]
+        @boot["debug"]["log_level"]
+      else
+        0
+      end
+    end
+    
     def load_boot_config_from_file(boot_file = BOOT_FILE_NAME)
       JSON.parse(IO.read(boot_file))
     end
@@ -82,6 +95,11 @@ module Thermo
       debugger if self.debug
     end
 
+    # print a log message if logging level in config file supports it
+    def log(message, level=10)
+      puts Time::now.to_s+": "+message if level <= self.configuration.log_level
+    end
+    
     # safety features
     # holds a time which indicates when the heater is allowed to turn back on
     # this prevents hystersis, where the heater goes on/off rapidly based on
@@ -114,9 +132,13 @@ module Thermo
       self.test_hw_temp_root_dir = ""
       begin
         @configuration = Configuration.new(options)
+        log("Initializing starting")
         set_current_time
+        log("Setting safety parameters")
         setup_safety_config
+        log("Initializing hardware")
         initialize_hardware
+        log("Initializing complete")
       rescue Exception => e
         set_heater_state(false)
         raise Thermo::InitializeFailed.new("Heater init failed but heater was turned off. Original class: #{e.class.to_s}. Msg: #{e.message}. #{e.backtrace}")
@@ -136,7 +158,6 @@ module Thermo
           # do nothing on the command line in test mode
       else # assume RUN_MODE == 'production' in all other cases
           cmds.each do |cmd|
-            #retval = Kernel.system(cmd[:cmd],*cmd[:args])
             retval = %x{cmd[:cmd] +" "+cmd[:args].join(" ")}
           end
       retval
@@ -214,17 +235,25 @@ module Thermo
     # time & temp, and compares to scheduled time and temp to determine
     # the action it should take
     def process_schedule
+      log("Processing schedule")
       self.set_current_time
       self.command_line_history = {}
+      log("Loading config from URL")
+      # TODO make this a call that loads new config but waits for changes (see node.js server)
+      # concept is that client calls a special server end-point that holds the HTTP connection open until the remote file changes
+      self.configuration.load_config_from_url
       schedule_mode = self.configuration.config["operation_mode"] || "Undefined"
       schedule = self.configuration.config[schedule_mode] || raise(UnknownSchedule.new("'operation_mode' value in config does not reference an existing configuration in the config file."))
-
+      log("Determining schedule to use")
       case schedule_mode
         when "daily_schedule"
+          log("  Daily")
           process_daily_schedule(schedule)
         when "immediate"
+          log("  Immediate")
           process_immediate_schedule(schedule)
         when "off" 
+          log("  Off")
           set_heater_state(false)
         else # error out if we don't know how to handle the schedule file
           raise UnknownSchedule.new("Unknown schedule found in configuration file. Schedule provided: \"#{schedule_mode}\"")
@@ -453,7 +482,6 @@ module Thermo
     def set_heater_state(turn_heater_on, new_goal_temp_f = nil)
       if !turn_heater_on
         self.heater_on = false
-        ## TODO Remove this?
         reset_heater_last_on_time
         self.goal_temp_f = new_goal_temp_f
       # Only change the heater to on if safety parameters are satisfied

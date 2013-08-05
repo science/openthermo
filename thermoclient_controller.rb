@@ -1,17 +1,21 @@
-# run thermoclient, try to turn off heater when thermoclient exits
-ENV["thermo_run_mode"] = 'testing'
+# run thermoclient repeatedly, try to turn off heater when thermoclient exits
 
 # amount of time to re-run thermoclient before exiting
 DEFAULT_RUN_TIME = '12 hours'
 DEFAULT_INTERVAL_BETWEEN_RUNS = '1 minute'
+DEFAULT_WORKING_FOLDER = './config'
 
 require './thermoclient.rb'
 require 'chronic'
 
-thermostat = Thermo::Thermostat.new
 start_time = Time::now
 end_time = Chronic.parse(DEFAULT_RUN_TIME+ " after now")
 wait_time = (Time::now - Chronic.parse(DEFAULT_INTERVAL_BETWEEN_RUNS + " after now")).abs
+working_dir = DEFAULT_WORKING_FOLDER
+
+Dir.chdir(working_dir)
+thermostat = Thermo::Thermostat.new
+
 begin
   while start_time < end_time
     puts "Processing schedule"
@@ -22,6 +26,7 @@ begin
 # on any exception attempt to turn off heater
 rescue Exception => e
   begin
+    thermostat = nil
     thermo_rescue  = Thermo::Thermostat.new
     thermo_rescue.set_heater_state(false)
   ensure

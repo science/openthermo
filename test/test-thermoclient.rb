@@ -50,9 +50,9 @@ class TestThermostatReads < Minitest::Test
 
   # test that thermostat reading commands are sent to hardware 
   def test_heater_thermostat_reader
-    # TODO use a totally value thermostat input file
+    # TODO use a totally valid thermostat input file
     # we set up a semi-valid thermostat input file
-    # temp is set to 24.495 celsius
+    # temp is hardcoded to 24.495 celsius
     File::open(DIR_THERM+"/w1_slave", "w+") do |w1_slave|
       w1_slave.puts("39 4393- 219392 4ds, YES")
       w1_slave.puts("DK2 DKSJJ 59KS DK2 t=24495")
@@ -421,7 +421,6 @@ class TestThermoClient < Minitest::Test
     assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
     assert_equal 68, thermostat.goal_temp_f
     
-    #TODO
     #Verify that if we set heater mode to immediate, goal temp to 75, temp to 73
     #heater turns on even though temp_override should turn it off
     cur_time = Chronic.parse("9/14/29 10:28 am")
