@@ -96,8 +96,11 @@ module Thermo
     end
 
     # print a log message if logging level in config file supports it
+    # if the configuration object isn't yet loaded, we log everything
     def log(message, level=10)
-      puts Time::now.to_s+": "+message if level <= self.configuration.log_level
+      if !self.configuration || (level <= self.configuration.log_level)
+        puts Time::now.to_s+": "+message
+      end
     end
     
     # safety features
@@ -128,7 +131,6 @@ module Thermo
       # this is to protect against a recurring crash
       # leaving the heater in the permenantly on condition
       self.command_line_history = {}
-      set_heater_state(false)
       self.test_hw_temp_root_dir = ""
       begin
         @configuration = Configuration.new(options)
@@ -139,6 +141,8 @@ module Thermo
         log("Initializing hardware")
         initialize_hardware
         log("Initializing complete")
+        set_heater_state(false)
+        log("Turning heater off before starting")
       rescue Exception => e
         set_heater_state(false)
         raise Thermo::InitializeFailed.new("Heater init failed but heater was turned off. Original class: #{e.class.to_s}. Msg: #{e.message}. #{e.backtrace}")
@@ -158,7 +162,9 @@ module Thermo
           # do nothing on the command line in test mode
       else # assume RUN_MODE == 'production' in all other cases
           cmds.each do |cmd|
-            retval = %x{cmd[:cmd] +" "+cmd[:args].join(" ")}
+            exec_string = "#{cmd[:cmd]} #{cmd[:args].join(' ')}"
+            log("Exec sys cmd: #{exec_string}",5)
+            retval = `#{exec_string}`
           end
       retval
       end
@@ -345,6 +351,7 @@ module Thermo
     end
     
     def goal_temp_f=(new_temp_f)
+      log("Setting goal temp to: #{new_temp_f}")
       @goal_temp_f = new_temp_f
     end
     
@@ -390,6 +397,7 @@ module Thermo
       else # assume RUN_MODE == 'production' in all other cases
           cur_temp_f = self.get_hw_temp_f
       end
+      log("Current temp measurement: #{cur_temp_f}")
       cur_temp_f
     end
     
@@ -502,6 +510,9 @@ module Thermo
         # this allows hysteresis to keep the heater off for a period
         # if the heater has been running too long (and that's why it's being 
         # turned off)
+
+        log("Heater attempted to turn on but unsafe condition. Goal temp #{new_goal_temp_f}", 5)
+
         set_heater_last_on_time if self.heater_on?
         self.heater_on = false
         self.goal_temp_f = new_goal_temp_f
@@ -512,7 +523,7 @@ module Thermo
 
 end # Thermo
 
-
+__END__
 
 
 =begin

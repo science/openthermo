@@ -100,8 +100,11 @@ function getFileResponse(req, res, next) {
   res.on('close', function(){dbg('unexpected close');});
   filename = req.params.name;
   if (filename && fs.existsSync(filename)) {
+    fileInfo = fs.statSync(filename)
+    dbg("File mtime: "+fileInfo.mtime);
     var data = fs.readFileSync(filename, {"encoding":"utf8"});
     dbg(getDateTimeStr()+' - Returning file: '+filename);
+dbg(data);
     res.write(data);
     res.end();
   }

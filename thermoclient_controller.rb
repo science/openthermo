@@ -2,7 +2,7 @@
 
 # amount of time to re-run thermoclient before exiting
 DEFAULT_RUN_TIME = '12 hours'
-DEFAULT_INTERVAL_BETWEEN_RUNS = '1 minute'
+DEFAULT_INTERVAL_BETWEEN_RUNS = '15 seconds'
 DEFAULT_WORKING_FOLDER = './config'
 
 require './thermoclient.rb'
