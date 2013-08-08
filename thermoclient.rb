@@ -15,12 +15,14 @@ require 'chronic'
 
 module Thermo
   class ThermoError < RuntimeError; end
-  class ConfigFileNotFound < ThermoError; end
-  class UnknownSchedule < ThermoError; end
-  class InvalidTemperature < ThermoError; end
-  class HWTempRead < ThermoError; end
-  class InitializeFailed < ThermoError; end
-  class UnknownRunMode < ThermoError; end
+  class ThermoCriticalError < ThermoError; end
+    class InitializeFailed < ThermoCriticalError; end
+    class ConfigFileNotFound < ThermoCriticalError; end
+  class ThermoRuntimeError < ThermoError; end
+    class InvalidTemperature < ThermoRuntimeError; end
+    class UnknownSchedule < ThermoRuntimeError; end
+    class HWTempRead < ThermoRuntimeError; end
+    class UnknownRunMode < ThermoRuntimeError; end
   
   BOOT_FILE_NAME = "boot.json"
   HYSTERESIS_DURATION_DEFAULT = "5 minutes"
