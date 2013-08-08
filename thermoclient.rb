@@ -286,6 +286,7 @@ module Thermo
     def process_immediate_schedule(schedule)
       heater_state_modified = false
       new_goal_temp_f = schedule["temp_f"]
+      log("  Goal temp: #{new_goal_temp_f}")
       if new_goal_temp_f > self.current_temp_f
         set_heater_state(true, new_goal_temp_f)
         heater_state_modified = true      
@@ -315,6 +316,7 @@ module Thermo
         end
         # this handles override temperature settings from user (via config)
         if temp_override_active_for_time_window?(:end_time => end_time, :start_time => start_time)
+          log("  In override temp mode")
           new_goal_temp_f = self.temp_override_goal_temp_f
           if self.temp_override_goal_temp_f && self.current_temp_f < self.temp_override_goal_temp_f
             set_heater_state(true, self.temp_override_goal_temp_f)
@@ -325,6 +327,8 @@ module Thermo
         # this handles regularly scheduled temp settings from config
         if (start_time <= current_time) && (end_time >= current_time)
           new_goal_temp_f = time_window["temp_f"] if !new_goal_temp_f
+          log("  Active time window: #{start_time}-#{end_time}")
+          log("  Goal temp #{new_goal_temp_f}")
           if self.current_temp_f < new_goal_temp_f
             set_heater_state(true, new_goal_temp_f)
             heater_state_modified = true
@@ -536,6 +540,10 @@ module Thermo
         # turned off)
         set_heater_last_on_time if self.heater_on?
         self.goal_temp_f = new_goal_temp_f
+        if !self.heater_on? && turn_heater_on
+          log("Heater wants to be on but cannot go on due to hysteresis control.")
+          log("  Goal temp: #{self.goal_temp_f}")
+        end
       else
         # this state occurs when heater is unsafe to turn on
         # due to over-temp, or running too long
