@@ -125,7 +125,11 @@ class TestThermoClient < Minitest::Test
     assert_heater_state_time({:heater_on => false, :last_on_time => nil}, thermostat)
     assert thermostat.heater_safe_to_turn_on?
     thermostat.process_schedule
-    assert_equal({cur_time => Thermo::HEATER_OFF_CMD}, thermostat.command_line_history)
+    off_cmd = Thermo::HEATER_OFF_CMD
+    cmds = thermostat.command_line_history[cur_time]
+    # we take away everything unknown out of cmds and match what's left to off_cmd
+    # we are ok with extra cmds in the buffer, but all the cmds we expect must be there too
+    assert_equal off_cmd, cmds-(cmds-off_cmd)
     assert_heater_state_time({:heater_on => false, :last_on_time => nil}, thermostat)
     assert_equal 62, thermostat.goal_temp_f
     # heater should turn on w/hardware
@@ -208,17 +212,16 @@ class TestThermoClient < Minitest::Test
       assert thermostat.current_temp_too_hot_to_operate?
       assert !thermostat.heater_safe_to_turn_on?
       thermostat.process_schedule
-      assert !thermostat.in_hysteresis?
       assert thermostat.current_temp_too_hot_to_operate?
       assert !thermostat.heater_on_too_long?
       assert !thermostat.heater_safe_to_turn_on?
-      assert_heater_state_time({:heater_on => false, :last_on_time => temp_set_time}, thermostat)
+      assert !thermostat.heater_on?
       assert_equal 90, thermostat.goal_temp_f
     end
   end
 
 # Test hysteresis (heater should turn on except that it was too recently on)
-  def test_heater_turns_off_after_running_too_long
+  def test_heater_hysteresis
     # Testing scenario:
     #   Time: 8/31/15 8:47:59 pm
     #   Room temp: 44
@@ -227,7 +230,7 @@ class TestThermoClient < Minitest::Test
     #    \=>(can't turn on heater after turning it off for 6 min)
     #   Heater running since: 8:43:22 pm
     #   Heater hysteresis state: true
-    #   Outcomes: Heater should be off
+    #   Outcomes: Heater should be on
     #   Goal temp: 70 (7pm-11pm)
     thermostat = Thermo::Thermostat.new
     temp_set_time = Chronic.parse("8/31/15 8:43:22 pm")
@@ -247,7 +250,89 @@ class TestThermoClient < Minitest::Test
     assert !thermostat.heater_on_too_long?
     assert !thermostat.current_temp_too_hot_to_operate?
     assert !thermostat.heater_safe_to_turn_on?
+    assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
+    assert_equal 70, thermostat.goal_temp_f
+
+    # cause the heater to turn off
+    temp_set_time = cur_time
+    cur_time = Chronic.parse("8/31/15 9:05 pm")
+    cur_temp = 71
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert_heater_state_time({:heater_on => true, :last_on_time => temp_set_time}, thermostat)
+    assert_equal 70, thermostat.goal_temp_f
+    assert !thermostat.in_hysteresis?
+    assert !thermostat.heater_on_too_long?
+    assert !thermostat.current_temp_too_hot_to_operate?
+    assert thermostat.heater_safe_to_turn_on?
+    thermostat.process_schedule
+    assert thermostat.in_hysteresis?
+    assert !thermostat.heater_on_too_long?
+    assert !thermostat.current_temp_too_hot_to_operate?
+    assert !thermostat.heater_safe_to_turn_on?
+    assert_heater_state_time({:heater_on => false, :last_on_time => cur_time}, thermostat)
+    assert_equal 70, thermostat.goal_temp_f
+
+    # Now cause the heater to want to turn on, but still within 
+    # the time frame prohibited by hysteresis. Heater should remain on
+    # not turn off (hystersis isn't a safety cut-off, but prevents on/off over-cycling)
+    temp_set_time = cur_time
+    cur_time = Chronic.parse("8/31/15 9:07 pm")
+    cur_temp = 44
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
     assert_heater_state_time({:heater_on => false, :last_on_time => temp_set_time}, thermostat)
+    assert_equal 70, thermostat.goal_temp_f
+    assert thermostat.in_hysteresis?
+    assert !thermostat.heater_on_too_long?
+    assert !thermostat.current_temp_too_hot_to_operate?
+    assert !thermostat.heater_safe_to_turn_on?
+    thermostat.process_schedule
+    assert thermostat.in_hysteresis?
+    assert !thermostat.heater_on_too_long?
+    assert !thermostat.current_temp_too_hot_to_operate?
+    assert !thermostat.heater_safe_to_turn_on?
+    assert_heater_state_time({:heater_on => false, :last_on_time => temp_set_time}, thermostat)
+    assert_equal 70, thermostat.goal_temp_f
+   
+    
+    
+    # move us out of hysteresis period
+    # cause the heater to turn on
+    cur_time = Chronic.parse("8/31/15 9:14 pm")
+    cur_temp = 55
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert_heater_state_time({:heater_on => false, :last_on_time => temp_set_time}, thermostat)
+    assert_equal 70, thermostat.goal_temp_f
+    assert !thermostat.in_hysteresis?
+    assert !thermostat.heater_on_too_long?
+    assert !thermostat.current_temp_too_hot_to_operate?
+    assert thermostat.heater_safe_to_turn_on?
+    thermostat.process_schedule
+    assert thermostat.in_hysteresis?
+    assert !thermostat.heater_on_too_long?
+    assert !thermostat.current_temp_too_hot_to_operate?
+    assert !thermostat.heater_safe_to_turn_on?
+    assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
+    assert_equal 70, thermostat.goal_temp_f
+    
+    
+    # then advance the time but within the hysteresis period, re-process the schedule
+    # and confirm that the heater can *stay* on
+    temp_set_time = cur_time
+    cur_time = Chronic.parse("8/31/15 9:16 pm")
+    cur_temp = 55
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert_heater_state_time({:heater_on => true, :last_on_time => temp_set_time}, thermostat)
+    assert_equal 70, thermostat.goal_temp_f
+    assert thermostat.in_hysteresis?
+    assert !thermostat.heater_on_too_long?
+    assert !thermostat.current_temp_too_hot_to_operate?
+    assert !thermostat.heater_safe_to_turn_on?
+    thermostat.process_schedule
+    assert thermostat.in_hysteresis?
+    assert !thermostat.heater_on_too_long?
+    assert !thermostat.current_temp_too_hot_to_operate?
+    assert !thermostat.heater_safe_to_turn_on?
+    assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
     assert_equal 70, thermostat.goal_temp_f
   end
 
@@ -286,6 +371,47 @@ class TestThermoClient < Minitest::Test
     assert !thermostat.heater_safe_to_turn_on?
     assert_heater_state_time({:heater_on => false, :last_on_time => cur_time}, thermostat)
     assert_equal 70, thermostat.goal_temp_f
+    
+    # cause the heater to turn on
+    temp_set_time = cur_time
+    cur_time = Chronic.parse("4/6/13 8:44:33 pm")
+    cur_temp = 49
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert_heater_state_time({:heater_on => false, :last_on_time => temp_set_time}, thermostat)
+    assert_equal 70, thermostat.goal_temp_f
+    assert !thermostat.heater_on_too_long?
+    assert !thermostat.in_hysteresis?
+    assert !thermostat.current_temp_too_hot_to_operate?
+    assert thermostat.heater_safe_to_turn_on?
+    thermostat.process_schedule
+    assert !thermostat.heater_on_too_long?
+    assert thermostat.in_hysteresis?
+    assert !thermostat.current_temp_too_hot_to_operate?
+    assert !thermostat.heater_safe_to_turn_on?
+    assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
+    assert_equal 70, thermostat.goal_temp_f    
+    
+    # then leave the heater running for a long period
+    # show that the heater is turned off even though the temperature
+    # is still too low (the heater wants to turn on)
+    temp_set_time = cur_time
+    cur_time = Chronic.parse("4/6/13 9:55 pm")
+    cur_temp = 49
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert_heater_state_time({:heater_on => true, :last_on_time => temp_set_time}, thermostat)
+    assert_equal 70, thermostat.goal_temp_f
+    assert thermostat.heater_on_too_long?
+    assert !thermostat.in_hysteresis?
+    assert !thermostat.current_temp_too_hot_to_operate?
+    assert !thermostat.heater_safe_to_turn_on?
+    thermostat.process_schedule
+    assert !thermostat.heater_on_too_long?
+    assert thermostat.in_hysteresis?
+    assert !thermostat.current_temp_too_hot_to_operate?
+    assert !thermostat.heater_safe_to_turn_on?
+    assert_heater_state_time({:heater_on => false, :last_on_time => cur_time}, thermostat)
+    assert_equal 70, thermostat.goal_temp_f    
+    
   end
 
 ## Test valid operating behavior
@@ -364,7 +490,7 @@ class TestThermoClient < Minitest::Test
     assert thermostat.heater_safe_to_turn_on?
     # heater should turn off, and new goal temp should be 62
     thermostat.process_schedule
-    assert_heater_state_time({:heater_on => false, :last_on_time => last_on_time}, thermostat)
+    assert_heater_state_time({:heater_on => false, :last_on_time => cur_time}, thermostat)
     assert_equal 62, thermostat.goal_temp_f
 
     # advance clock to 10:15am
@@ -393,7 +519,7 @@ class TestThermoClient < Minitest::Test
     assert thermostat.heater_safe_to_turn_on?
     # heater should turn off
     thermostat.process_schedule
-    assert_heater_state_time({:heater_on => false, :last_on_time => last_on_time}, thermostat)
+    assert_heater_state_time({:heater_on => false, :last_on_time => cur_time}, thermostat)
     assert_equal 72, thermostat.goal_temp_f
 
     # advance clock to 5:51pm
@@ -422,7 +548,7 @@ class TestThermoClient < Minitest::Test
     assert thermostat.heater_safe_to_turn_on?
     # heater should turn on
     thermostat.process_schedule
-    assert_heater_state_time({:heater_on => false, :last_on_time => last_on_time}, thermostat)
+    assert_heater_state_time({:heater_on => false, :last_on_time => cur_time}, thermostat)
     assert_equal nil, thermostat.goal_temp_f
 
     # advance clock to 7:01pm
@@ -486,7 +612,7 @@ class TestThermoClient < Minitest::Test
     assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
     assert thermostat.heater_safe_to_turn_on?
     thermostat.process_schedule
-    assert_heater_state_time({:heater_on => false, :last_on_time => last_on_time}, thermostat)
+    assert_heater_state_time({:heater_on => false, :last_on_time => cur_time}, thermostat)
     assert_equal nil, thermostat.goal_temp_f
     
   end
@@ -522,7 +648,7 @@ class TestThermoClient < Minitest::Test
     assert thermostat.heater_safe_to_turn_on?
     # heater should turn off, and new goal temp should be 44
     thermostat.process_schedule
-    assert_heater_state_time({:heater_on => false, :last_on_time => last_on_time}, thermostat)
+    assert_heater_state_time({:heater_on => false, :last_on_time => cur_time}, thermostat)
     assert !thermostat.goal_temp_f
 
     # move immediate/hold temp up to 66 and verify the heater goes on
@@ -572,10 +698,11 @@ class TestThermoClient < Minitest::Test
     assert thermostat.heater_safe_to_turn_on?
     # heater should turn off, and new goal temp should be nil
     thermostat.process_schedule
-    assert_heater_state_time({:heater_on => false, :last_on_time => last_on_time}, thermostat)
+    assert_heater_state_time({:heater_on => false, :last_on_time => cur_time}, thermostat)
     assert !thermostat.goal_temp_f
 
     # move room temp up to 71 and verify the heater stays off
+    last_on_time = cur_time
     cur_time = Chronic.parse("2/22/19 8:45 pm")
     cur_temp = 71
     assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
@@ -673,7 +800,7 @@ class TestThermoClient < Minitest::Test
     assert !thermostat.in_hysteresis?
     assert_heater_state_time({:heater_on => true, :last_on_time => heater_last_started_time}, thermostat)
     thermostat.process_schedule
-    assert_heater_state_time({:heater_on => false, :last_on_time => heater_last_started_time}, thermostat)
+    assert_heater_state_time({:heater_on => false, :last_on_time => cur_time}, thermostat)
     assert_equal nil, thermostat.goal_temp_f
     
     # Testing scenario, pt II:
@@ -682,6 +809,7 @@ class TestThermoClient < Minitest::Test
     #   Initial Heater state: off
     #   Outcomes: Heater should be on
     #   Goal temp: 70 (7:00pm-11:00pm)
+    heater_last_started_time = cur_time
     cur_time = Chronic.parse("12/8/14 7:01pm")
     cur_temp = 50
     assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
@@ -690,7 +818,7 @@ class TestThermoClient < Minitest::Test
     assert_equal nil, thermostat.goal_temp_f
     thermostat.process_schedule
     heater_last_started_time = cur_time 
-    assert_heater_state_time({:heater_on => true, :last_on_time => heater_last_started_time}, thermostat)
+    assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
     assert_equal 70, thermostat.goal_temp_f
   end
 

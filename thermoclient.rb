@@ -477,7 +477,7 @@ module Thermo
     # returns nil if not running
     def heater_running_time_minutes
       return nil if !heater_on?
-      return nil if self.heater_last_on_time >= self.current_time
+      return nil if self.heater_last_on_time > self.current_time
       (self.current_time - self.heater_last_on_time)/60
     end
 
@@ -498,16 +498,26 @@ module Thermo
     # It MUST NOT simply remain in the state it was in.
     def heater_safe_to_turn_on?
       return false if self.in_hysteresis?
+      return false if !self.heater_safe_except_hysteresis?
+      true
+    end
+
+    def heater_safe_except_hysteresis?
       return false if self.heater_on_too_long?
       return false if self.current_temp_too_hot_to_operate?
       true
     end
-
+    
     # send true to turn heater on, false to turn heater off
     def set_heater_state(turn_heater_on, new_goal_temp_f = nil)
       if !turn_heater_on
+        # if the heater is currently on, set the last on time to now (which is the last time the heater was running)
+        if self.heater_on?
+          set_heater_last_on_time
+        else
+          reset_heater_last_on_time
+        end
         self.heater_on = false
-        reset_heater_last_on_time
         self.goal_temp_f = new_goal_temp_f
       # Only change the heater to on if safety parameters are satisfied
       elsif turn_heater_on && self.heater_safe_to_turn_on?
@@ -515,13 +525,22 @@ module Thermo
         self.heater_on = true
         set_heater_last_on_time
         self.goal_temp_f = new_goal_temp_f
+      # we treat hysteresis different from other unsafe conditions
+      # we don't have to turn the heater off in hysteresis
+      # we just can't allow the state to change from off to on
+      # leaving the heater on if it was already on is fine
+      elsif self.in_hysteresis? && self.heater_safe_except_hysteresis?
+        # bring the heater_last_on_time to current time
+        # this allows hysteresis to keep the heater off for a period
+        # if the heater has been running too long (and that's why it's being 
+        # turned off)
+        set_heater_last_on_time if self.heater_on?
+        self.goal_temp_f = new_goal_temp_f
       else
         # this state occurs when heater is unsafe to turn on
-        # due to hysteresis, over temp, or running too long
-        # or unhandled in some other way
+        # due to over-temp, or running too long
+        # or unhandled issue in some other way
         # Heater *must* be turned off when unhandled
-        # We don't reset heater_last_on_time because hysteresis
-        # and max runtime safety limits depend on that calculation
 
         # bring the heater_last_on_time to current time
         # this allows hysteresis to keep the heater off for a period
