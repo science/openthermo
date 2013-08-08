@@ -104,7 +104,6 @@ function getFileResponse(req, res, next) {
     dbg("File mtime: "+fileInfo.mtime);
     var data = fs.readFileSync(filename, {"encoding":"utf8"});
     dbg(getDateTimeStr()+' - Returning file: '+filename);
-dbg(data);
     res.write(data);
     res.end();
   }

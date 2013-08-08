@@ -15,12 +15,13 @@ working_dir = DEFAULT_WORKING_FOLDER
 
 Dir.chdir(working_dir)
 thermostat = Thermo::Thermostat.new
-
+puts "Starting Thermoclient and processing remote schedule file..."
+puts Time::now
 begin
   while start_time < end_time
-    puts "Processing schedule"
+    #puts "Processing schedule"
     thermostat.process_schedule
-    puts "Sleeping"
+    #puts "Sleeping"
     sleep(wait_time)
   end
 # on any exception attempt to turn off heater
