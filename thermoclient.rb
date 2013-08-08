@@ -48,9 +48,8 @@ module Thermo
     attr_accessor :boot, :config
     attr_reader :using_url_for_config
     
-    # load our default settings from the boot.json file
-    # load main config file from url specified in boot file
-    def initialize(options = {})
+    # resets the internal variables by reloading them
+    def reinitialize(options = {})
       boot_file = options[:boot_file] || BOOT_FILE_NAME
       @boot = load_boot_config_from_file(boot_file)
       @using_url_for_config = !!options[:config]
@@ -65,11 +64,21 @@ module Thermo
         @config["debug"]["log_level"]
       elsif @boot["debug"] && @boot["debug"]["log_level"]
         @boot["debug"]["log_level"]
+      elsif ENV["thermo_run_mode"] == 'testing'
+        0
       else
         0
       end
     end
     
+    private
+    
+    # load our default settings from the boot.json file
+    # load main config file from url specified in boot file
+    def initialize(options = {})
+      self.reinitialize(options)
+    end
+
     def load_boot_config_from_file(boot_file = BOOT_FILE_NAME)
       JSON.parse(IO.read(boot_file))
     end
@@ -130,6 +139,7 @@ module Thermo
       # turn heater off as first initializing step
       # this is to protect against a recurring crash
       # leaving the heater in the permenantly on condition
+      self.debug = true if options[:debug]
       self.command_line_history = {}
       self.test_hw_temp_root_dir = ""
       begin
@@ -175,7 +185,12 @@ module Thermo
     end
   
     def add_executed_cmds_to_history(cmds)
-      self.command_line_history[self.current_time] = cmds
+      if self.command_line_history[self.current_time]
+        self.command_line_history[self.current_time] = self.command_line_history[self.current_time] + cmds
+      else
+        self.command_line_history[self.current_time] = cmds
+      end
+      true
     end
     
     def setup_safety_config
@@ -236,6 +251,10 @@ module Thermo
       retval = Chronic.parse(time_str, options)
       retval
     end
+
+
+    # TODO make a new method or signature "process_schedule(:wait => true)" that loads waits for changes on the config file before continuing
+    # (see node.js server) client calls a special server end-point that holds the HTTP connection open until the remote file changes before returning
     
     # we process the schedule periodically - this function uses current
     # time & temp, and compares to scheduled time and temp to determine
@@ -245,9 +264,7 @@ module Thermo
       self.set_current_time
       self.command_line_history = {}
       log("Loading config from URL")
-      # TODO make this a call that loads new config but waits for changes (see node.js server)
-      # concept is that client calls a special server end-point that holds the HTTP connection open until the remote file changes
-      self.configuration.load_config_from_url
+      self.configuration.reinitialize
       schedule_mode = self.configuration.config["operation_mode"] || "Undefined"
       schedule = self.configuration.config[schedule_mode] || raise(UnknownSchedule.new("'operation_mode' value in config does not reference an existing configuration in the config file."))
       log("Determining schedule to use")
@@ -351,7 +368,7 @@ module Thermo
     end
     
     def goal_temp_f=(new_temp_f)
-      log("Setting goal temp to: #{new_temp_f}")
+      #log("Setting goal temp to: #{new_temp_f}")
       @goal_temp_f = new_temp_f
     end
     

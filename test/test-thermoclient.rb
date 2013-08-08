@@ -13,6 +13,11 @@ VALID_BOOT_JSON_ORIG = 'valid-thermo-boot.json.orig'
 VALID_CONFIG_JSON_ORIG = 'backbedroom.json.orig'
 VALID_EXTREME_TEMP_CONFIG_JSON_ORIG = 'backbedroom_hot.json.orig'
 VALID_TEMP_OVERRIDE_CONFIG_JSON_ORIG = 'backbedroom-override.json.orig'
+VALID_CHANGED_CONFIG_JSON_ORIG = 'backbedroom.json.changed.orig'
+VALID_IMMEDIATE_CONFIG_JSON_ORIG = 'backbedroom.json.immediate.orig'
+VALID_IMMEDIATE_SECOND_CONFIG_JSON_ORIG = 'backbedroom.json.immediate_second.orig'
+VALID_TEMP_OVERRIDE_IMMEDIATE_CONFIG_JSON_ORIG = 'backbedroom-override-immediate.json.orig'
+VALID_TEMP_OVERRIDE_OFF_CONFIG_JSON_ORIG = 'backbedroom-override-off.json.orig'
 INVALID_MALFORMED_CONFIG_JSON_ORIG = 'invalid-malformed-backbedroom.json.orig'
 INVALID_MISSING_ELEMENT_CONFIG_JSON_ORIG = 'invalid-missing-element-backbedroom.json.orig'
 INVALID_MALFORMED_BOOT_JSON_ORIG = 'invalid-malformed-thermo-boot.json.orig'
@@ -99,12 +104,14 @@ class TestThermoClient < Minitest::Test
   # command line correctly during production without actually
   # sending them to the command line
   def test_hardware_initializes_correctly
-    thermostat = Thermo::Thermostat.new
+    thermostat = Thermo::Thermostat.new(:debug=>true)
     cur_time = thermostat.current_time
-    expected_cmds = {cur_time => Thermo::INITIALIZE_HEATER_HARDWARE}
+    expected_cmds = Thermo::INITIALIZE_HEATER_HARDWARE
     cmds = thermostat.command_line_history
-	  cmds.delete(nil)
-    assert_equal expected_cmds, cmds
+    # we extract only expected cmds from returned cmds - if an expected 
+    # command is missing we will get an error.
+    # we don't care if there are more commands than we are expecting
+    assert_equal expected_cmds, cmds[cur_time]-(cmds[cur_time]-expected_cmds)
   end
 
   # verify that during heater operation correct commands are
@@ -127,7 +134,12 @@ class TestThermoClient < Minitest::Test
     assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
     assert thermostat.heater_safe_to_turn_on?
     thermostat.process_schedule
-    assert_equal Thermo::HEATER_ON_CMD, thermostat.command_line_history[cur_time]
+    expected_cmds = Thermo::HEATER_ON_CMD
+    cmds = thermostat.command_line_history
+    # we extract only expected cmds from returned cmds - if an expected 
+    # command is missing we will get an error.
+    # we don't care if there are more commands than we are expecting
+    assert_equal expected_cmds, cmds[cur_time]-(cmds[cur_time]-expected_cmds)
     assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
     assert_equal 62, thermostat.goal_temp_f
   end
@@ -280,6 +292,39 @@ class TestThermoClient < Minitest::Test
 
 # Functional test: Test sequences of heater on, achieving goal temp, heater off, temp cool off, heater on, etc
 
+  # verify that if config file changes after it has been loaded, that the new configuration
+  # values are used instead of the existing ones
+  def test_when_config_file_changes
+    # Testing scenario:
+    #   Descr:  Load override config from URL and be in normal weekday mode
+    #           Change the remote config file and check that behavior changes
+    #   Time: 11/4/55 9:11 am
+    #   Room temp: 22
+    #   Initial Heater state: off
+    #   Outcomes: Heater should be off
+    #   Goal temp: 68 (6:30am - 10am)
+    thermostat = Thermo::Thermostat.new
+    cur_time = Chronic.parse("11/4/55 9:11 am")
+    cur_temp = 70
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert_heater_state_time({:heater_on => false, :last_on_time => nil}, thermostat)
+    assert thermostat.heater_safe_to_turn_on?
+    thermostat.process_schedule
+    assert_heater_state_time({:heater_on => false, :last_on_time => nil}, thermostat)
+    assert_equal 68, thermostat.goal_temp_f
+    
+    # simulate changing the config file to a new one that has 6:30am-10am window 
+    FileUtils.cp(VALID_CHANGED_CONFIG_JSON_ORIG, CONFIG_JSON)
+    cur_time = Chronic.parse("11/4/55 9:17 am")
+    cur_temp = 69
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert_heater_state_time({:heater_on => false, :last_on_time => nil}, thermostat)
+    assert thermostat.heater_safe_to_turn_on?
+    thermostat.process_schedule
+    assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
+    assert_equal 72, thermostat.goal_temp_f
+  end
+
   # verify that "temp_override" function sets heater to a set goal and turns heater 
   # on/off correctly. Specifically the temporary goal should only apply during
   # the time window when the override is set. Thermostat should return to scheduled
@@ -421,11 +466,11 @@ class TestThermoClient < Minitest::Test
     assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
     assert_equal 68, thermostat.goal_temp_f
     
-    #Verify that if we set heater mode to immediate, goal temp to 75, temp to 73
+    #Verify that if we set heater mode to immediate, goal temp to 78, temp to 73
     #heater turns on even though temp_override should turn it off
     cur_time = Chronic.parse("9/14/29 10:28 am")
     cur_temp = 73
-    thermostat.configuration.config["operation_mode"] = "immediate"
+    FileUtils.cp(VALID_TEMP_OVERRIDE_IMMEDIATE_CONFIG_JSON_ORIG, CONFIG_JSON)
     assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
     assert thermostat.heater_safe_to_turn_on?
     thermostat.process_schedule
@@ -437,7 +482,7 @@ class TestThermoClient < Minitest::Test
     last_on_time = cur_time
     cur_time = Chronic.parse("9/14/29 10:37 am")
     cur_temp = 70
-    thermostat.configuration.config["operation_mode"] = "off"
+    FileUtils.cp(VALID_TEMP_OVERRIDE_OFF_CONFIG_JSON_ORIG, CONFIG_JSON)
     assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
     assert thermostat.heater_safe_to_turn_on?
     thermostat.process_schedule
@@ -469,7 +514,7 @@ class TestThermoClient < Minitest::Test
 
     # change operation_mode to immediate 
     # verify that heater turns off
-    thermostat.configuration.config["operation_mode"] = "immediate"
+    FileUtils.cp(VALID_IMMEDIATE_CONFIG_JSON_ORIG, CONFIG_JSON)
     last_on_time = cur_time
     cur_time = Chronic.parse("6/30/15 5:40 pm")
     cur_temp = 52
@@ -485,7 +530,7 @@ class TestThermoClient < Minitest::Test
     cur_time = Chronic.parse("6/30/15 5:47 pm")
     cur_temp = 50
     new_goal_temp_f = 66
-    thermostat.configuration.config["immediate"]["temp_f"] = new_goal_temp_f
+    FileUtils.cp(VALID_IMMEDIATE_SECOND_CONFIG_JSON_ORIG, CONFIG_JSON)
     assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
     assert thermostat.heater_safe_to_turn_on?
     # heater should turn off, and new goal temp should be 44
@@ -518,11 +563,11 @@ class TestThermoClient < Minitest::Test
     assert_equal 70, thermostat.goal_temp_f
 
     # change operation_mode to off
-    # verify that heater turns off
-    thermostat.configuration.config["operation_mode"] = "off"
+    # verify that heater turns off even at low temperatures
+    FileUtils.cp(VALID_TEMP_OVERRIDE_OFF_CONFIG_JSON_ORIG, CONFIG_JSON)
     last_on_time = cur_time
     cur_time = Chronic.parse("2/22/19 8:39 pm")
-    cur_temp = 69
+    cur_temp = 44
     assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
     assert thermostat.heater_safe_to_turn_on?
     # heater should turn off, and new goal temp should be nil
