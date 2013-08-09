@@ -32,7 +32,7 @@ begin
       puts "***  Critical failure encountered. Retrying  ***"
       puts "  Exception class: #{e.class.to_s}. Msg: #{e.message}.\n  Backtrace: #{e.backtrace}"
       thermostat = Thermo::Thermostat.new
-    rescue Thermo::Exception => e
+    rescue e
       puts "***  Unknown failure encountered. Retrying  ***"
       puts "  Exception class: #{e.class.to_s}. Msg: #{e.message}.\n  Backtrace: #{e.backtrace}"
       thermostat = Thermo::Thermostat.new

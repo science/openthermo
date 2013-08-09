@@ -111,7 +111,7 @@ module Thermo
     # if the configuration object isn't yet loaded, we log everything
     def log(message, level=10)
       if !self.configuration || (level <= self.configuration.log_level)
-        puts Time::now.to_s+": "+message
+        puts "#{Time::now}: #{message}"
       end
     end
     
@@ -441,7 +441,8 @@ module Thermo
       override_start_time = self.temp_override_start_time
       cur_time = self.current_time
       # we have to be inside the current time window for temp_override to be possible for this window
-      override_start_time && (cur_time >= start_time) && (cur_time >= override_start_time) && (cur_time <= end_time) && (override_start_time >= start_time) && (override_start_time <= end_time)
+      retval = override_start_time && (cur_time >= start_time) && (cur_time >= override_start_time) && (cur_time <= end_time) && (override_start_time >= start_time) && (override_start_time <= end_time)
+      retval
     end
     
     def temp_override_start_time

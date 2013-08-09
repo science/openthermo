@@ -1,11 +1,11 @@
 {
-  "debug": {"log_level": 0},
+  "debug": {"log_level": 9},
   "operation_mode": "daily_schedule",
   "daily_schedule": {
     "times_of_operation": [
       {"start": "12:00 am", "stop": "6:30 am", "temp_f": 60},
-      {"start": "6:30 am", "stop": "10:00 am", "temp_f": 68},
-      {"start": "10:00 am", "stop": "6:00 pm", "temp_f": 62},
+      {"start": "6:30 am", "stop": "10:00 am", "temp_f": 72},
+      {"start": "10:00 am", "stop": "6:00 pm", "temp_f": 74},
       {"start": "7:00 pm", "stop": "11:00 pm", "temp_f": 73},
       {"start": "11:00 pm", "stop": "12:00 am", "temp_f": 60}
   ]},
