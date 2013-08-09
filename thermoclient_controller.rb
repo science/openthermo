@@ -22,12 +22,20 @@ begin
     begin
       thermostat.process_schedule
       sleep(wait_time)
-    rescue ThermoRuntimeError => e
+    # rescue and alert from various exceptions
+    # create a new thermostat object to try again
+    rescue Thermo::ThermoRuntimeError => e
       puts "Runtime exception encountered. Retrying.."
       puts "  Exception class: #{e.class.to_s}. Msg: #{e.message}.\n  Backtrace: #{e.backtrace}"
-    rescue ThermoCriticalError => e
+      thermostat = Thermo::Thermostat.new
+    rescue Thermo::ThermoCriticalError => e
       puts "***  Critical failure encountered. Retrying  ***"
       puts "  Exception class: #{e.class.to_s}. Msg: #{e.message}.\n  Backtrace: #{e.backtrace}"
+      thermostat = Thermo::Thermostat.new
+    rescue Thermo::Exception => e
+      puts "***  Unknown failure encountered. Retrying  ***"
+      puts "  Exception class: #{e.class.to_s}. Msg: #{e.message}.\n  Backtrace: #{e.backtrace}"
+      thermostat = Thermo::Thermostat.new
     end
   end
 # on any exception or exit, attempt to turn off heater

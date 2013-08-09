@@ -167,15 +167,12 @@ class TestThermoClient < Minitest::Test
   end
 
   def test_invalid_config_json_file
+    # test invalid config file on boot fails correctly
     FileUtils.cp(INVALID_MALFORMED_CONFIG_JSON_ORIG, CONFIG_JSON)
     assert_raises(Thermo::InitializeFailed) {thermostat = Thermo::Thermostat.new}
-    
-#    thermostat = Thermo::Thermostat.new
-#    puts thermostat.configuration.config.inspect
-    # test invalid config file on boot fails correctly
     FileUtils.cp(VALID_CONFIG_JSON_ORIG, CONFIG_JSON)
-    # test invalid config file during running operations fails
-    assert_silent {thermostat = Thermo::Thermostat.new({:throw=>true})}
+    # test valid config file during running operations succeeds
+    assert_silent {thermostat = Thermo::Thermostat.new}
   end
 
   # Heater should be on but it has exceeded max allowable temp
@@ -418,6 +415,58 @@ class TestThermoClient < Minitest::Test
 
 # Functional test: Test sequences of heater on, achieving goal temp, heater off, temp cool off, heater on, etc
 
+  # test that when the heater is operating, we generate status metadata about what
+  # the heater is doing correctly
+  def test_status_metadata
+    # Testing scenario:
+    #   Descr:  Check metadata status through various operation stages including
+    #           Changes to the config file
+    #   Time: 11/4/55 9:11 am
+    #   Room temp: 65
+    #   Initial Heater state: off
+    #   Outcomes: Heater should be on
+    #   Goal temp: 68 (6:30am - 10am)
+    thermostat = Thermo::Thermostat.new
+    # check metadata after initialization but before first run
+    # convert status_metadata to ruby hash
+    status = JSON.parse(thermostat.status_metadata)
+    assert_equal({}, status)
+    # setup for processing schedule and check metadata afterwards
+    cur_date = "11/4/55"
+    cur_time = Chronic.parse("#{cur_date} 9:11 am")
+    cur_temp = 65
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert_heater_state_time({:heater_on => false, :last_on_time => nil}, thermostat)
+    assert thermostat.heater_safe_to_turn_on?
+    thermostat.process_schedule
+    assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
+    assert_equal 68, thermostat.goal_temp_f
+    status = JSON.parse(thermostat.status_metadata)
+    assert_equal "daily_schedule", status["operating_state"]["operation_mode"]
+    assert_equal Chronic.parse("#{cur_date} 6:30 am"), Chronic.parse(status["operating_state"]["daily_schedule"]["times_of_operation"]["start"])
+    assert_equal Chronic.parse("#{cur_date} 10:00 am"), Chronic.parse(status["operating_state"]["daily_schedule"]["times_of_operation"]["stop"])
+    assert_equal "68", status["operating_state"]["daily_schedule"]["times_of_operation"]["temp_f"]
+    assert_equal "off", status["operating_state"]["off"]
+    assert_equal "", status["operating_state"]["immediate"]["temp_f"]
+    assert_equal "", status["operating_state"]["temp_override"]["date_time"]
+    assert_equal "", status["operating_state"]["temp_override"]["temp_f"]
+    assert_equal "65", status["hardware_state"]["temp_f"]
+    assert_equal "yes", status["hardware_state"]["heater_on"]
+    assert_equal "68", status["internal_state"]["goal_temp_f"]
+    assert_equal cur_time.to_s, status["internal_state"]["current_time"]
+    assert_equal "no", status["internal_state"]["safety_parameters"]["safe_to_turn_on"]
+    assert_equal "yes", status["internal_state"]["safety_parameters"]["in_hysteresis"]
+    assert_equal "no", status["internal_state"]["safety_parameters"]["too_hot_too_operate"]
+    assert_equal "no", status["internal_state"]["safety_parameters"]["on_too_long"]
+    # update the time and see that we can watch the clock go forward
+    cur_time = Chronic.parse("#{cur_date} 9:18 am")
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    thermostat.update_status_metadata
+    status = JSON.parse(thermostat.status_metadata)
+    assert_equal cur_time.to_s, status["internal_state"]["current_time"]
+
+  end
+
   # verify that if config file changes after it has been loaded, that the new configuration
   # values are used instead of the existing ones
   def test_when_config_file_changes
@@ -477,6 +526,13 @@ class TestThermoClient < Minitest::Test
     assert_heater_state_time({:heater_on => false, :last_on_time => nil}, thermostat)
     assert thermostat.heater_safe_to_turn_on?
     thermostat.process_schedule
+    status = JSON.parse(thermostat.status_metadata)
+    assert_equal "", status["operating_state"]["temp_override"]["date_time"]
+    assert_equal "", status["operating_state"]["temp_override"]["temp_f"]
+    assert_equal "daily_schedule", status["operating_state"]["operation_mode"]
+    assert_equal "49", status["hardware_state"]["temp_f"]
+    assert_equal "yes", status["hardware_state"]["heater_on"]
+    assert_equal "68", status["internal_state"]["goal_temp_f"]
     assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
     assert_equal 68, thermostat.goal_temp_f
 
@@ -506,6 +562,13 @@ class TestThermoClient < Minitest::Test
     thermostat.process_schedule
     assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
     assert_equal 72, thermostat.goal_temp_f
+    status = JSON.parse(thermostat.status_metadata)
+    assert_equal Chronic.parse("9/14/29 10:15am"), Chronic.parse(status["operating_state"]["temp_override"]["date_time"])
+    assert_equal "72", status["operating_state"]["temp_override"]["temp_f"]
+    assert_equal "daily_schedule", status["operating_state"]["operation_mode"]
+    assert_equal "65", status["hardware_state"]["temp_f"]
+    assert_equal "yes", status["hardware_state"]["heater_on"]
+    assert_equal "72", status["internal_state"]["goal_temp_f"]
 
     # advance clock to 10:21:02am
     # bring room temp to 72.1
@@ -552,19 +615,20 @@ class TestThermoClient < Minitest::Test
     assert_equal nil, thermostat.goal_temp_f
 
     # advance clock to 7:01pm
-    # bring room temp to 60
+    # bring room temp to 71
     # schedule wants room at 70
-    # force temp_override to want room at 55
-    # verify heater turns on b/c regular schedule turns it on
+    # temp_override wants room at 72
+    # verify heater turns off b/c regular schedule turns it off 
+    # (override would want it on, if it was still being honored)
+    last_time_on = cur_time
     cur_time = Chronic.parse("9/14/29 7:01pm")
-    cur_temp = 60
-    thermostat.configuration.config["temp_override"]["temp_f"] = 55
+    cur_temp = 71
     assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
     assert thermostat.heater_safe_to_turn_on?
     # heater should turn on
     thermostat.process_schedule
-    assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
     assert_equal 70, thermostat.goal_temp_f
+    assert_heater_state_time({:heater_on => false, :last_on_time => last_time_on}, thermostat)
   end
 
   def test_temp_override_on_function_corner_cases
@@ -650,6 +714,23 @@ class TestThermoClient < Minitest::Test
     thermostat.process_schedule
     assert_heater_state_time({:heater_on => false, :last_on_time => cur_time}, thermostat)
     assert !thermostat.goal_temp_f
+    status = JSON.parse(thermostat.status_metadata)
+    assert_equal "immediate", status["operating_state"]["operation_mode"]
+    assert_equal nil, Chronic.parse(status["operating_state"]["daily_schedule"]["times_of_operation"]["start"])
+    assert_equal nil, Chronic.parse(status["operating_state"]["daily_schedule"]["times_of_operation"]["stop"])
+    assert_equal "", status["operating_state"]["daily_schedule"]["times_of_operation"]["temp_f"]
+    assert_equal "off", status["operating_state"]["off"]
+    assert_equal "44", status["operating_state"]["immediate"]["temp_f"]
+    assert_equal "", status["operating_state"]["temp_override"]["date_time"]
+    assert_equal "", status["operating_state"]["temp_override"]["temp_f"]
+    assert_equal "52", status["hardware_state"]["temp_f"]
+    assert_equal "no", status["hardware_state"]["heater_on"]
+    assert_equal "", status["internal_state"]["goal_temp_f"]
+    assert_equal cur_time.to_s, status["internal_state"]["current_time"]
+    assert_equal "no", status["internal_state"]["safety_parameters"]["safe_to_turn_on"]
+    assert_equal "yes", status["internal_state"]["safety_parameters"]["in_hysteresis"]
+    assert_equal "no", status["internal_state"]["safety_parameters"]["too_hot_too_operate"]
+    assert_equal "no", status["internal_state"]["safety_parameters"]["on_too_long"]
 
     # move immediate/hold temp up to 66 and verify the heater goes on
     last_on_time = cur_time
@@ -663,7 +744,24 @@ class TestThermoClient < Minitest::Test
     thermostat.process_schedule
     assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
     assert_equal new_goal_temp_f, thermostat.goal_temp_f
-    
+    status = JSON.parse(thermostat.status_metadata)
+    assert_equal "immediate", status["operating_state"]["operation_mode"]
+    assert_equal nil, Chronic.parse(status["operating_state"]["daily_schedule"]["times_of_operation"]["start"])
+    assert_equal nil, Chronic.parse(status["operating_state"]["daily_schedule"]["times_of_operation"]["stop"])
+    assert_equal "", status["operating_state"]["daily_schedule"]["times_of_operation"]["temp_f"]
+    assert_equal "off", status["operating_state"]["off"]
+    assert_equal "66", status["operating_state"]["immediate"]["temp_f"]
+    assert_equal "", status["operating_state"]["temp_override"]["date_time"]
+    assert_equal "", status["operating_state"]["temp_override"]["temp_f"]
+    assert_equal "50", status["hardware_state"]["temp_f"]
+    assert_equal "yes", status["hardware_state"]["heater_on"]
+    assert_equal "66", status["internal_state"]["goal_temp_f"]
+    assert_equal cur_time.to_s, status["internal_state"]["current_time"]
+    assert_equal "no", status["internal_state"]["safety_parameters"]["safe_to_turn_on"]
+    assert_equal "yes", status["internal_state"]["safety_parameters"]["in_hysteresis"]
+    assert_equal "no", status["internal_state"]["safety_parameters"]["too_hot_too_operate"]
+    assert_equal "no", status["internal_state"]["safety_parameters"]["on_too_long"]
+
   end
 
   # Heater should not turn on under any circumstances when "operation_mode" in 
@@ -700,6 +798,23 @@ class TestThermoClient < Minitest::Test
     thermostat.process_schedule
     assert_heater_state_time({:heater_on => false, :last_on_time => cur_time}, thermostat)
     assert !thermostat.goal_temp_f
+    status = JSON.parse(thermostat.status_metadata)
+    assert_equal "off", status["operating_state"]["operation_mode"]
+    assert_equal nil, Chronic.parse(status["operating_state"]["daily_schedule"]["times_of_operation"]["start"])
+    assert_equal nil, Chronic.parse(status["operating_state"]["daily_schedule"]["times_of_operation"]["stop"])
+    assert_equal "", status["operating_state"]["daily_schedule"]["times_of_operation"]["temp_f"]
+    assert_equal "off", status["operating_state"]["off"]
+    assert_equal "", status["operating_state"]["immediate"]["temp_f"]
+    assert_equal "", status["operating_state"]["temp_override"]["date_time"]
+    assert_equal "", status["operating_state"]["temp_override"]["temp_f"]
+    assert_equal "44", status["hardware_state"]["temp_f"]
+    assert_equal "no", status["hardware_state"]["heater_on"]
+    assert_equal "", status["internal_state"]["goal_temp_f"]
+    assert_equal cur_time.to_s, status["internal_state"]["current_time"]
+    assert_equal "no", status["internal_state"]["safety_parameters"]["safe_to_turn_on"]
+    assert_equal "yes", status["internal_state"]["safety_parameters"]["in_hysteresis"]
+    assert_equal "no", status["internal_state"]["safety_parameters"]["too_hot_too_operate"]
+    assert_equal "no", status["internal_state"]["safety_parameters"]["on_too_long"]
 
     # move room temp up to 71 and verify the heater stays off
     last_on_time = cur_time
@@ -711,6 +826,23 @@ class TestThermoClient < Minitest::Test
     thermostat.process_schedule
     assert_heater_state_time({:heater_on => false, :last_on_time => last_on_time}, thermostat)
     assert !thermostat.goal_temp_f
+    status = JSON.parse(thermostat.status_metadata)
+    assert_equal "off", status["operating_state"]["operation_mode"]
+    assert_equal nil, Chronic.parse(status["operating_state"]["daily_schedule"]["times_of_operation"]["start"])
+    assert_equal nil, Chronic.parse(status["operating_state"]["daily_schedule"]["times_of_operation"]["stop"])
+    assert_equal "", status["operating_state"]["daily_schedule"]["times_of_operation"]["temp_f"]
+    assert_equal "off", status["operating_state"]["off"]
+    assert_equal "", status["operating_state"]["immediate"]["temp_f"]
+    assert_equal "", status["operating_state"]["temp_override"]["date_time"]
+    assert_equal "", status["operating_state"]["temp_override"]["temp_f"]
+    assert_equal "71", status["hardware_state"]["temp_f"]
+    assert_equal "no", status["hardware_state"]["heater_on"]
+    assert_equal "", status["internal_state"]["goal_temp_f"]
+    assert_equal cur_time.to_s, status["internal_state"]["current_time"]
+    assert_equal "yes", status["internal_state"]["safety_parameters"]["safe_to_turn_on"]
+    assert_equal "no", status["internal_state"]["safety_parameters"]["in_hysteresis"]
+    assert_equal "no", status["internal_state"]["safety_parameters"]["too_hot_too_operate"]
+    assert_equal "no", status["internal_state"]["safety_parameters"]["on_too_long"]
   end
   
   

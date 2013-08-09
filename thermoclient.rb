@@ -6,6 +6,7 @@ end
 require 'json'
 require 'net/http'
 require 'chronic'
+require 'erubis'
 
 # Design notes
 # the code / system that runs Thermo::Thermostat
@@ -121,14 +122,22 @@ module Thermo
     attr_accessor :max_heater_on_time_minutes
     attr_accessor :max_temp_f
     attr_accessor :hysteresis_duration
+
+    # holds status data that can be used to display the run-time situation of the
+    # thermostat and the heater it is controlling
+    attr_reader :status_metadata # json string - complex structure
+    attr_reader :heater_last_on_time # datetime
+    attr_reader :operation_mode # string
+    attr_reader :daily_schedule # nested hash of structure {:times_of_operation => {:start => datetime, :end => datetime, :temp_f => int}}
+    attr_reader :temp_override # hash with two properties - :date_time and :temp_f
+    attr_reader :immediate # hash
     
     # used for testing - if set, we use this value instead of system values
     attr_reader :override_current_time
     attr_accessor :override_current_temp_f
     attr_accessor :override_relay_state
-    attr_reader :heater_last_on_time
     attr_reader :goal_temp_f
-    
+
     #holds the last set of commands executed on the command line
     attr_accessor :command_line_history
     # holds a temp root folder for testing - allows
@@ -155,12 +164,76 @@ module Thermo
         log("Initializing complete")
         set_heater_state(false)
         log("Turning heater off before starting")
+        set_default_metadata
       rescue Exception => e
         set_heater_state(false)
         raise Thermo::InitializeFailed.new("Heater init failed but heater was turned off. Original class: #{e.class.to_s}. Msg: #{e.message}. #{e.backtrace}")
       end
     end
     
+    def set_default_metadata
+      @status_metadata = "{}"
+      @operation_mode = "off"
+      @daily_schedule = {:times_of_operation => {}}
+      @immediate = {}
+      @temp_override = {}
+    end
+    
+    def btj(bool)
+      bool_to_json(bool)
+    end
+
+    # returns string "yes" or "no" or "" for nil
+    def bool_to_json(bool)
+      if bool
+        "yes"
+      elsif bool == nil
+        ""
+      else
+        "no"
+      end
+    end
+    
+    # calling this method will cause the internal metadata to be updated with 
+    # current values of the system
+    def update_status_metadata
+      json_template = <<-template
+        {
+          "operating_state":{
+            "operation_mode":"<%=self.operation_mode%>",
+            "daily_schedule": {
+              "times_of_operation":{
+                "start": "<%=self.daily_schedule[:times_of_operation][:start_time]%>", 
+                "stop": "<%=self.daily_schedule[:times_of_operation][:end_time]%>", 
+                "temp_f": "<%=self.daily_schedule[:times_of_operation][:temp_f]%>"
+              }
+            },          
+            "immediate":{"temp_f": "<%=self.immediate[:temp_f]%>"},
+            "temp_override": {"date_time": "<%=self.temp_override[:date_time]%>", "temp_f": "<%=self.temp_override[:temp_f]%>"},
+            "off": "off"
+          },
+          "hardware_state":{
+            "temp_f": "<%=self.current_temp_f%>", 
+            "heater_on": "<%=btj(self.heater_on?)%>"
+            },
+          "internal_state":{
+            "goal_temp_f": "<%=self.goal_temp_f%>", 
+            "current_time": "<%=self.current_time%>",
+            "heater_last_on_time": "<%=self.heater_last_on_time%>",
+            "safety_parameters": {
+              "safe_to_turn_on":"<%=btj(self.heater_safe_to_turn_on?)%>", 
+              "in_hysteresis":"<%=btj(self.in_hysteresis?)%>", 
+              "too_hot_too_operate":"<%=btj(self.current_temp_too_hot_to_operate?)%>", 
+              "on_too_long":"<%=btj(self.heater_on_too_long?)%>"
+            }
+          }
+        }
+      template
+      eruby = Erubis::Eruby.new(json_template)
+      @status_metadata = eruby.result(binding())
+      @status_metadata
+    end
+
     # set up hardware ports to communicate with relay and thermostat
     def initialize_hardware
       self.execute_system_commands(INITIALIZE_HEATER_HARDWARE)
@@ -265,6 +338,7 @@ module Thermo
       log("Processing schedule")
       self.set_current_time
       self.command_line_history = {}
+      set_default_metadata
       log("Loading config from URL")
       self.configuration.reinitialize
       schedule_mode = self.configuration.config["operation_mode"] || "Undefined"
@@ -279,15 +353,20 @@ module Thermo
           process_immediate_schedule(schedule)
         when "off" 
           log("  Off")
+          @operation_mode = "off"
           set_heater_state(false)
         else # error out if we don't know how to handle the schedule file
           raise UnknownSchedule.new("Unknown schedule found in configuration file. Schedule provided: \"#{schedule_mode}\"")
       end
+      update_status_metadata
+      log(status_metadata,9)
     end
 
     def process_immediate_schedule(schedule)
       heater_state_modified = false
+      @operation_mode = "immediate"
       new_goal_temp_f = schedule["temp_f"]
+      @immediate[:temp_f] = new_goal_temp_f
       log("  Goal temp: #{new_goal_temp_f}")
       if new_goal_temp_f > self.current_temp_f
         set_heater_state(true, new_goal_temp_f)
@@ -307,6 +386,7 @@ module Thermo
     def process_daily_schedule(schedule)
       # compare current time/temp with config specified in file
       heater_state_modified = false
+      @operation_mode = "daily_schedule"
       times_of_op = schedule["times_of_operation"]
       new_goal_temp_f = nil
       times_of_op.each do |time_window|
@@ -320,6 +400,8 @@ module Thermo
         if temp_override_active_for_time_window?(:end_time => end_time, :start_time => start_time)
           log("  In override temp mode")
           new_goal_temp_f = self.temp_override_goal_temp_f
+          @temp_override[:date_time] = self.current_time
+          @temp_override[:temp_f] = new_goal_temp_f
           if self.temp_override_goal_temp_f && self.current_temp_f < self.temp_override_goal_temp_f
             set_heater_state(true, self.temp_override_goal_temp_f)
             heater_state_modified = true
@@ -329,6 +411,9 @@ module Thermo
         # this handles regularly scheduled temp settings from config
         if (start_time <= current_time) && (end_time >= current_time)
           new_goal_temp_f = time_window["temp_f"] if !new_goal_temp_f
+          @daily_schedule[:times_of_operation][:start_time] = start_time
+          @daily_schedule[:times_of_operation][:end_time] = end_time
+          @daily_schedule[:times_of_operation][:temp_f] = new_goal_temp_f
           log("  Active time window: #{start_time}-#{end_time}")
           log("  Goal temp #{new_goal_temp_f}")
           if self.current_temp_f < new_goal_temp_f
@@ -361,7 +446,7 @@ module Thermo
     
     def temp_override_start_time
       if self.configuration.config["temp_override"]
-        Chronic.parse(self.configuration.config["temp_override"]["date-time"])
+        Chronic.parse(self.configuration.config["temp_override"]["date_time"])
       end
     end
     
@@ -434,7 +519,7 @@ module Thermo
       base_folder = File::join(@test_hw_temp_root_dir,"/sys/bus/w1/devices/28-*")
       folders = Dir[base_folder]
       if folders.size != 1
-        raise Thermo::HWTempRead.new("Too many or zero temperature folders (/sys/bus/w1/devices/28-*) in get_hw_temp_c: "+folders.join(" :: "))
+        raise Thermo::HWTempRead.new("Too many or zero temperature folders (Count: #{folders.size}) (/sys/bus/w1/devices/28-*) in get_hw_temp_c: "+folders.join(" :: "))
       end    
       temp_file = File::join(folders.first, "w1_slave")
       files = Dir[temp_file]
@@ -641,7 +726,7 @@ url and then hang out on config-url-watch will update immediately upon remote fi
       {"start": "7:00 pm", "stop": "11:00 pm", "temp-f": 70},
       {"start": "11:00 pm", "stop": "5:30 am", "temp-f": 62}
   ]}},
-  "workweekly-schedule": {
+  "workweekly_schedule": {
     ["workday"|"weekend"]: {"times-of-operation": [
       {"start": "6:30 am", "stop": "10:00 am", "temp-f": 68},
       {"start": "10:00 am", "stop": "6:00 pm", "temp-f": 62},
@@ -652,6 +737,7 @@ url and then hang out on config-url-watch will update immediately upon remote fi
   "temp_override": {"date-time": "2013-07-27 23:11:20 -0000", "temp_f": 66},
   "off" : "off"
 }
+
 
 schedule notes:
   If there is a gap between one end time and the following start time, heater will be OFF during that period
