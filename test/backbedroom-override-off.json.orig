@@ -9,6 +9,6 @@
       {"start": "11:00 pm", "stop": "12:00 am", "temp_f": 62}
   ]},
   "immediate": {"temp_f": 78},
-  "temp_override": {"date-time": "9/14/29 10:15am", "temp_f": 72},
+  "temp_override": {"time_stamp": "9/14/29 10:15am", "temp_f": 72},
   "off": "off"
 }

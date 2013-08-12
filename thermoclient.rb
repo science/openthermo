@@ -43,6 +43,10 @@ module Thermo
   HEATER_ON_CMD = [{:cmd => "gpio", :args=>["write", "0", "1"]}]
   HEATER_OFF_CMD = [{:cmd => "gpio", :args=>["write", "0", "0"]}]
   GET_HEATER_RELAY_STATE = [{:cmd => "gpio", :args => ["read", "0"]}]
+  # Note there are also system level commands to access thermometer readings
+  # but these are so complicated that they have been abstracted into a function
+  # see get_hw_temp_c method for more. 
+  
   
   # Configuration class is responsible for loading and re-loading configurations
   # It starts by loading the boot configuration from disk
@@ -129,8 +133,9 @@ module Thermo
     attr_reader :heater_last_on_time # datetime
     attr_reader :operation_mode # string
     attr_reader :daily_schedule # nested hash of structure {:times_of_operation => {:start => datetime, :end => datetime, :temp_f => int}}
-    attr_reader :temp_override # hash with two properties - :date_time and :temp_f
+    attr_reader :temp_override # hash with two properties - :time_stamp and :temp_f
     attr_reader :immediate # hash
+    attr_reader :last_user_input_time # date/time indicating the last time the user gave override/immediate input
     
     # used for testing - if set, we use this value instead of system values
     attr_reader :override_current_time
@@ -177,6 +182,7 @@ module Thermo
       @daily_schedule = {:times_of_operation => {}}
       @immediate = {}
       @temp_override = {}
+      @last_user_input_time = Time::new(0)
     end
     
     def btj(bool)
@@ -209,7 +215,7 @@ module Thermo
               }
             },          
             "immediate":{"temp_f": "<%=self.immediate[:temp_f]%>"},
-            "temp_override": {"date_time": "<%=self.temp_override[:date_time]%>", "temp_f": "<%=self.temp_override[:temp_f]%>"},
+            "temp_override": {"time_stamp": "<%=self.temp_override[:time_stamp]%>", "temp_f": "<%=self.temp_override[:temp_f]%>"},
             "off": "off"
           },
           "hardware_state":{
@@ -220,6 +226,7 @@ module Thermo
             "goal_temp_f": "<%=self.goal_temp_f%>", 
             "current_time": "<%=self.current_time%>",
             "heater_last_on_time": "<%=self.heater_last_on_time%>",
+            "last_user_input_time": "<%=self.last_user_input_time%>",
             "safety_parameters": {
               "safe_to_turn_on":"<%=btj(self.heater_safe_to_turn_on?)%>", 
               "in_hysteresis":"<%=btj(self.in_hysteresis?)%>", 
@@ -368,6 +375,7 @@ module Thermo
       new_goal_temp_f = schedule["temp_f"]
       @immediate[:temp_f] = new_goal_temp_f
       log("  Goal temp: #{new_goal_temp_f}")
+      @last_user_input_time = self.immediate_start_time
       if new_goal_temp_f > self.current_temp_f
         set_heater_state(true, new_goal_temp_f)
         heater_state_modified = true      
@@ -376,10 +384,18 @@ module Thermo
       # did not find a matching time window and so should turn
       # the heater off (a gap in the time window = heater off)
       if !heater_state_modified
-        set_heater_state(false) 
+        set_heater_state(false, new_goal_temp_f) 
       end
     end
 
+    def immediate_start_time
+      if self.configuration.config["immediate"] && self.configuration.config["immediate"]["time_stamp"]
+        Chronic.parse(self.configuration.config["immediate"]["time_stamp"])
+      else
+        Time::new(0)
+      end
+    end
+    
     # Finds time window within config file that corresponds to current time
     # Finds goal temp for that window
     # Turns heater on/off depending on if goal temp is gt/lt than actual temp
@@ -398,9 +414,11 @@ module Thermo
         end
         # this handles override temperature settings from user (via config)
         if temp_override_active_for_time_window?(:end_time => end_time, :start_time => start_time)
+
           log("  In override temp mode")
           new_goal_temp_f = self.temp_override_goal_temp_f
-          @temp_override[:date_time] = self.current_time
+          @last_user_input_time = self.temp_override_start_time
+          @temp_override[:time_stamp] = self.temp_override_start_time
           @temp_override[:temp_f] = new_goal_temp_f
           if self.temp_override_goal_temp_f && self.current_temp_f < self.temp_override_goal_temp_f
             set_heater_state(true, self.temp_override_goal_temp_f)
@@ -446,11 +464,13 @@ module Thermo
     end
     
     def temp_override_start_time
-      if self.configuration.config["temp_override"]
-        Chronic.parse(self.configuration.config["temp_override"]["date_time"])
+      if self.configuration.config["temp_override"] && self.configuration.config["temp_override"]["time_stamp"]
+        Chronic.parse(self.configuration.config["temp_override"]["time_stamp"])
+      else
+        Time::new(0)
       end
     end
-    
+
     def temp_override_goal_temp_f
       self.configuration.config["temp_override"]["temp_f"] if self.configuration.config["temp_override"]
     end
@@ -556,13 +576,27 @@ module Thermo
 
     # Returns true if the heater should remain off due to hysteresis control
     # This prevents the heater from going on and off too rapidly
+    # If there has been recent user input, then we use the time of last user input
+    # plus the hysteresis duration config as the baseline for hysteresis detection 
+    # This effectively creates a "window" after any user input when there cannot 
+    # be hysteresis
     def in_hysteresis?
       # if the heater hasn't been turned on yet, we cannot be in hysteresis
       return false if !self.heater_last_on_time
-      # this calculates the current time plus the hysteresis duration
+      # window/duration of hysteresis in a Chronic parsable format
       hys_calc = @hysteresis_duration+ " after"
-      hys_window = self.parse_time(hys_calc, :now => self.heater_last_on_time) 
-      current_time < hys_window
+      if (self.last_user_input_time > self.heater_last_on_time) && (self.last_user_input_time <= self.current_time)
+        hysteresis_start_time = self.last_user_input_time
+        hys_window = self.parse_time(hys_calc, :now => hysteresis_start_time) 
+        # we can't be in hysteresis within this window after user input
+        current_time > hys_window
+      else
+        hysteresis_start_time = self.heater_last_on_time
+        # this calculates the current time plus the hysteresis duration
+        hys_window = self.parse_time(hys_calc, :now => hysteresis_start_time) 
+        # we *are* in hysteresis if heater was turned on by schedule within this window
+        current_time < hys_window
+      end
     end
 
     # returns the number of minutes the heater has been running

@@ -25,3 +25,14 @@ More documentation to come, and contact welcome from interested users or contrib
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+
+Author's statement on warranties, conditions, guarantees or fitness of software for any purpose
+
+No warranty is expressed or implied, per Apache license. If you use this software it is vital that you understand this.
+This software could be used to control expensive heating equipment. There is no guarantee that it will function properly
+for your heater, even if the tests are working and you install it correctly. It could damage your heating equipment.
+It could cause the heating equipment to malfunction. It could cause damage to property, create fires, gas leaks or electrical malfunctions.
+It could harm or kill humans or animals. It could do other, unknown harmful things.
+I nor any contributor has any liability for what you do with this software or from the effects of operating this software.
+You cannot use this software without agreeing to the Apache license which prevents you from seeking damages or other recourse
+for any function or lack of function related to this software, as described above or otherwise.
