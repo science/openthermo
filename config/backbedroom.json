@@ -9,6 +9,6 @@
       {"start": "7:00 pm", "stop": "11:00 pm", "temp_f": 73},
       {"start": "11:00 pm", "stop": "12:00 am", "temp_f": 60}
   ]},
-  "immediate": {"temp_f": 77},
+  "immediate": {"temp_f": 77, "time_stamp": "9/14/13 10:15am"},
   "off": "off"
 }
