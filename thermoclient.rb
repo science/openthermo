@@ -134,7 +134,7 @@ module Thermo
     attr_reader :operation_mode # string
     attr_reader :daily_schedule # nested hash of structure {:times_of_operation => {:start => datetime, :end => datetime, :temp_f => int}}
     attr_reader :temp_override # hash with two properties - :time_stamp and :temp_f
-    attr_reader :immediate # hash
+    attr_reader :immediate # hash with two properties - :time_stamp and :temp_f
     attr_reader :last_user_input_time # date/time indicating the last time the user gave override/immediate input
     
     # used for testing - if set, we use this value instead of system values
@@ -214,7 +214,7 @@ module Thermo
                 "temp_f": "<%=self.daily_schedule[:times_of_operation][:temp_f]%>"
               }
             },          
-            "immediate":{"temp_f": "<%=self.immediate[:temp_f]%>"},
+            "immediate":{"time_stamp": "<%=self.immediate[:time_stamp]%>", "temp_f": "<%=self.immediate[:temp_f]%>"},
             "temp_override": {"time_stamp": "<%=self.temp_override[:time_stamp]%>", "temp_f": "<%=self.temp_override[:temp_f]%>"},
             "off": "off"
           },
@@ -376,6 +376,7 @@ module Thermo
       @immediate[:temp_f] = new_goal_temp_f
       log("  Goal temp: #{new_goal_temp_f}")
       @last_user_input_time = self.immediate_start_time
+      @immediate[:time_stamp] = @last_user_input_time
       if new_goal_temp_f > self.current_temp_f
         set_heater_state(true, new_goal_temp_f)
         heater_state_modified = true      
