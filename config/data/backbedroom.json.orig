@@ -9,6 +9,11 @@
       {"start": "7:00 pm", "stop": "11:00 pm", "temp_f": 73},
       {"start": "11:00 pm", "stop": "12:00 am", "temp_f": 60}
   ]},
+<<<<<<< Updated upstream
   "immediate": {"temp_f": 77, "time_stamp": "9/14/13 10:15am"},
+=======
+  "temp_override": {"temp_f": 72, "time_stamp": "8/11/2013 11:23 pm"},
+  "immediate": {"temp_f": 74, "time_stamp": "8/13/13 9:41 pm"},
+>>>>>>> Stashed changes
   "off": "off"
 }

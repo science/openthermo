@@ -1,11 +1,11 @@
 {
   "config_source": {
     "immediate_polling_seconds": 15,
-    "config_url": "http://127.0.0.1:8080/api/abc123xyz/file/backbedroom.config.json",
+    "config_url": "http://127.0.0.1:8080/api/abc123xyz/file/backbedroom.config.json"
   },
   "operating_parameters": {
     "max_temp_f": 79,
     "max_operating_time_minutes": "59",
-    "hysteresis_duration": "1 minutes"
+    "hysteresis_duration": "10 minutes"
   }
 }
