@@ -59,6 +59,7 @@ class TestThermostatReads < Minitest::Test
     # TODO use a totally valid thermostat input file
     # we set up a semi-valid thermostat input file
     # temp is hardcoded to 24.495 celsius
+    # but only the "YES" and "t=24495" are the same as live readings
     File::open(DIR_THERM+"/w1_slave", "w+") do |w1_slave|
       w1_slave.puts("39 4393- 219392 4ds, YES")
       w1_slave.puts("DK2 DKSJJ 59KS DK2 t=24495")

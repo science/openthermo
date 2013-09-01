@@ -335,8 +335,8 @@ module Thermo
     end
 
 
-    # TODO make a new method or signature "process_schedule(:wait => true)" that loads waits for changes on the config file before continuing
-    # (see node.js server) client calls a special server end-point that holds the HTTP connection open until the remote file changes before returning
+    # TODO make a new method or signature that calls the server endpoint .../if-file/newer-than
+    # which will only return the config file if it is newer than the one we have
     
     # we process the schedule periodically - this function uses current
     # time & temp, and compares to scheduled time and temp to determine
