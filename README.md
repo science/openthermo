@@ -1,15 +1,15 @@
-#thermoruby
+#The Open Thermostat Project
 _a network-enabled thermostat controller_
 
 # Overview
-DIY thermostat project designed to let you operate multiple network controlled thermostats on heaters of various types.
+A DIY thermostat project designed to let you operate multiple network controlled thermostats on heaters of various types.
 
 Currently, supported hardware is a Raspberry Pi with particular electronics and driver support. More details on these coming soon.
 
 There are several parts of this project:
 
-* A ruby client = thermoruby.rb and related controller and test files
-* A node.js server = this is used for testing and can be used for operations. It does very little - simply returning configurations files when requested
+* A ruby client = thermoruby.rb and thermoruby_controller and test files
+* thermoserver.rb server = this is used for testing and can be used for operations. It is a distinct codebase but required for testing thermoruby.rb. It also can be used in production operations to support thermoruby.rb and its controller.
 
 More documentation to come, and contact welcome from interested users or contributors. science@misuse.org
 
@@ -38,21 +38,36 @@ From that file it determines several safety features and the URL where it can fi
 A web server must make a file of the appropriate json format available at that URL. By updating the file at that URL
 you can control and change the operation the thermostat system, and thereby the heater itself.
 
-A boot file looks like:
+A boot file (must be named "boot.json") looks like:
 ```json
 {
   "debug": {"log_level": 0},
   "config_source": {
     "immediate_polling_seconds": 15,
-    "config_url": "http://127.0.0.1:8080/now/backbedroom.json",
+    "config_url": "http://127.0.0.1:8080/api/abc123xyz/file/backbedroom.json",
+    "upload_status_url": "http://127.0.0.1:8080/api/abc123xyz/file/backbedroom.status.json",
+    "upload_status_max_interval": "15 minutes"  
   },
   "operating_parameters": {
     "max_temp_f": 79,
     "max_operating_time_minutes": "59",
-    "hysteresis_duration": "1 minutes"
+    "hysteresis_duration": "10 minutes"
   }
 }
 ```
+Boot file field definitions:
+* log_level: 0 = no logging, 10 = max logging
+* immediate_polling_seconds: number of seconds to wait before re-polling server for configuration data
+* config_url: URL where the client can download its configuration data from server
+* upload_status_url: URL where the client should send it status metadata periodically
+* upload_status_max_interval: status is uploaded whenever heater state changes or after this period of time
+* operating paramters: defines operating limits for the heater
+  * max_temp_f: heater will not be allowed to operate when room temp is greater than this value
+  * max_operating_time_minutes: heater will not be allowed to operate longer than this number of minutes
+    * Note: heater will be allowed to turn on again after being shut off due to max operating time after hysteresis_duration elapses
+  * hysteresis_duration: A period of time that must elapse after the heater is turned off before it is allowed back on again. This prevents small fluctuations in room temperature from causing the heater to cycle on and off too frequently.
+
+
 
 A configuration file looks like:
 ```json
@@ -200,26 +215,21 @@ temperature in the house.
 
 # License
 (c) 2013 Steve Midgley 
+http://www.gnu.org/licenses/gpl-3.0.txt
 
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use the files in this project except in compliance with the License.
-   You may obtain a copy of the License at
+    This file is part of the Open Thermostat project.
 
-       http://www.apache.org/licenses/LICENSE-2.0
+    The Open Thermostat project is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
 
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
+    The Open Thermostat project is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
 
-Author's statement on warranties, conditions, guarantees or fitness of software for any purpose
+    You should have received a copy of the GNU General Public License
+    along with The Open Thermostat project.  
+    If not, see <http://www.gnu.org/licenses/>.
 
-No warranty is expressed or implied, per Apache license. If you use this software it is vital that you understand this.
-This software could be used to control expensive heating equipment. There is no guarantee that it will function properly
-for your heater, even if the tests are working and you install it correctly. It could damage your heating equipment.
-It could cause the heating equipment to malfunction. It could cause damage to property, create fires, gas leaks or electrical malfunctions.
-It could harm or kill humans or animals. It could do other, unknown harmful things.
-I nor any contributor has any liability for what you do with this software or from the effects of operating this software.
-You cannot use this software without agreeing to the Apache license which prevents you from seeking damages or other recourse
-for any function or lack of function related to this software, as described above or otherwise.

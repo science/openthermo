@@ -1,4 +1,5 @@
 {
+  "heater_name": "Back bedroom Heater",
   "operation_mode": "daily_schedule",
   "daily_schedule": {
     "times_of_operation": [

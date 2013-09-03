@@ -1,3 +1,22 @@
+# copyright 2013 Steve Midgley 
+# http://www.gnu.org/licenses/gpl-3.0.txt
+
+#     This file is part of the Open Thermostat project.
+
+#     The Open Thermostat project is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU General Public License as published by
+#     the Free Software Foundation, either version 3 of the License, or
+#     (at your option) any later version.
+
+#     The Open Thermostat project is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#     GNU General Public License for more details.
+
+#     You should have received a copy of the GNU General Public License
+#     along with The Open Thermostat project.  
+#     If not, see <http://www.gnu.org/licenses/>.
+
 gem "minitest"
 
 ENV["thermo_run_mode"] = 'testing'
@@ -23,12 +42,14 @@ INVALID_MALFORMED_CONFIG_JSON_ORIG = 'invalid-malformed-backbedroom.json.orig'
 INVALID_MISSING_ELEMENT_CONFIG_JSON_ORIG = 'invalid-missing-element-backbedroom.json.orig'
 INVALID_MALFORMED_BOOT_JSON_ORIG = 'invalid-malformed-thermo-boot.json.orig'
 INVALID_MISSING_ELEMENT_BOOT_JSON_ORIG = 'invalid-missing-elements-thermo-boot.json.orig'
+STATUS_METADATA_UPLOAD_FILE = 'backbedroom.status.json'
 # this file is made available to a webserver at the path specified in 
 # VALID_BOOT_JSON_ORIG for config_url and config_url_watch.
 # This is done by setup/teardown routines below
 # This file should NOT exist in between testing sessions
 CONFIG_JSON = 'backbedroom.json'
 
+# these constants set up our mock for simulated reading of the 1-wire thermometer
 DIR_ROOT =(rand*10000000).to_i
 DIR_THERM = "./sys/bus/w1/devices/28-#{DIR_ROOT}"
 class ThermoTestError < RuntimeError; end
@@ -79,6 +100,7 @@ class TestThermoClient < Minitest::Test
   def teardown
     FileUtils.safe_unlink(Thermo::BOOT_FILE_NAME)
     FileUtils.safe_unlink(CONFIG_JSON)
+    FileUtils.safe_unlink(STATUS_METADATA_UPLOAD_FILE)
     raise Thermo::ConfigFileNotFound if File.exist?(Thermo::BOOT_FILE_NAME)
     raise Thermo::ConfigFileNotFound if File.exist?(CONFIG_JSON)
   end
@@ -445,6 +467,7 @@ class TestThermoClient < Minitest::Test
     assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
     assert_equal 68, thermostat.goal_temp_f
     status = JSON.parse(thermostat.status_metadata)
+    assert_equal "Back bedroom Heater", status["internal_state"]["heater_name"]
     assert_equal "daily_schedule", status["operating_state"]["operation_mode"]
     assert_equal Chronic.parse("#{cur_date} 6:30 am"), Chronic.parse(status["operating_state"]["daily_schedule"]["times_of_operation"]["start"])
     assert_equal Chronic.parse("#{cur_date} 10:00 am"), Chronic.parse(status["operating_state"]["daily_schedule"]["times_of_operation"]["stop"])
@@ -456,7 +479,7 @@ class TestThermoClient < Minitest::Test
     assert_equal "65", status["hardware_state"]["temp_f"]
     assert_equal "yes", status["hardware_state"]["heater_on"]
     assert_equal "68", status["internal_state"]["goal_temp_f"]
-    assert_equal Time::new(0).to_s, status["internal_state"]["last_user_input_time"]
+    assert_equal Time::at(0).to_s, status["internal_state"]["last_user_input_time"]
     assert_equal cur_time.to_s, status["internal_state"]["current_time"]
     assert_equal "no", status["internal_state"]["safety_parameters"]["safe_to_turn_on"]
     assert_equal "yes", status["internal_state"]["safety_parameters"]["in_hysteresis"]
@@ -721,7 +744,7 @@ class TestThermoClient < Minitest::Test
         assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
         assert_equal 62, thermostat.goal_temp_f
         status = JSON.parse(thermostat.status_metadata)
-        assert_equal Time::new(0).to_s, status["internal_state"]["last_user_input_time"]
+        assert_equal Time::at(0).to_s, status["internal_state"]["last_user_input_time"]
 
         # turn heater off but only advance the time a short period
         last_on_time = cur_time
@@ -734,7 +757,7 @@ class TestThermoClient < Minitest::Test
         assert thermostat.in_hysteresis?
         assert_equal 62, thermostat.goal_temp_f
         status = JSON.parse(thermostat.status_metadata)
-        assert_equal Time::new(0).to_s, status["internal_state"]["last_user_input_time"]
+        assert_equal Time::at(0).to_s, status["internal_state"]["last_user_input_time"]
 
         # introduce user-input override command to 72
         # b/c there has been user-input, the heater should go on
@@ -1107,6 +1130,61 @@ class TestThermoClient < Minitest::Test
     thermostat.process_schedule
     assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
     assert_equal 62, thermostat.goal_temp_f
+  end
+
+  def test_status_metadata_upload
+    # Testing scenario:
+    #   Time: 12/1/17 5:19am
+    #   Room temp: 60
+    #   Initial Heater state: off
+    #   Outcomes: Heater should be on
+    #   Goal temp: 62 (12:00am-6:30am)
+    thermostat = Thermo::Thermostat.new
+    cur_time = Chronic.parse("12/1/17 5:19am")
+    cur_temp = 60
+    # make sure upload file doesn't exist
+    FileUtils.safe_unlink(STATUS_METADATA_UPLOAD_FILE)
+    assert !File::exists?(STATUS_METADATA_UPLOAD_FILE)
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert !thermostat.in_hysteresis?
+    assert_heater_state_time({:heater_on => false, :last_on_time => nil}, thermostat)
+    thermostat.process_schedule
+    assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
+    assert File::exists?(STATUS_METADATA_UPLOAD_FILE), "Status metadata file was not uploaded to server."
+    status_metadata = File::read(STATUS_METADATA_UPLOAD_FILE)
+    assert_equal thermostat.status_metadata, status_metadata
+    # sanity check that the file has some stuff in it
+    assert status_metadata.length > 50
+    # this will raise an exception if the file isn't valid json
+    json = JSON.parse(status_metadata)
+    assert_equal 62, thermostat.goal_temp_f
+
+    # verify that when the heater status doesn't change, the status_metadata isn't uploaded
+    FileUtils.safe_unlink(STATUS_METADATA_UPLOAD_FILE)
+    assert !File::exists?(STATUS_METADATA_UPLOAD_FILE)
+    cur_time = Chronic.parse("12/1/17 5:24am")
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    thermostat.process_schedule
+    assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
+    assert !File::exists?(STATUS_METADATA_UPLOAD_FILE), "Status metadata file was uploaded to server but shouldn't have been."
+    assert_equal 62, thermostat.goal_temp_f
+
+    # verify that after 15 minutes passes, the status file is uploaded even though nothing has changed
+    FileUtils.safe_unlink(STATUS_METADATA_UPLOAD_FILE)
+    assert !File::exists?(STATUS_METADATA_UPLOAD_FILE)
+    cur_time = Chronic.parse("12/1/17 5:34:01am")
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    thermostat.process_schedule
+    assert_heater_state_time({:heater_on => true, :last_on_time => cur_time}, thermostat)
+    assert File::exists?(STATUS_METADATA_UPLOAD_FILE), "Status metadata file was not uploaded to server."
+    status_metadata = File::read(STATUS_METADATA_UPLOAD_FILE)
+    assert_equal thermostat.status_metadata, status_metadata
+    # sanity check that the file has some stuff in it
+    assert status_metadata.length > 50
+    # this will raise an exception if the file isn't valid json
+    json = JSON.parse(status_metadata)
+    assert_equal 62, thermostat.goal_temp_f
+
   end
 
 

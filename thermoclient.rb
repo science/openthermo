@@ -1,3 +1,23 @@
+# copyright 2013 Steve Midgley 
+# http://www.gnu.org/licenses/gpl-3.0.txt
+
+#     This file is part of the Open Thermostat project.
+
+#     The Open Thermostat project is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU General Public License as published by
+#     the Free Software Foundation, either version 3 of the License, or
+#     (at your option) any later version.
+
+#     The Open Thermostat project is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#     GNU General Public License for more details.
+
+#     You should have received a copy of the GNU General Public License
+#     along with The Open Thermostat project.  
+#     If not, see <http://www.gnu.org/licenses/>.
+
+
 if ENV["thermo_run_mode"] == 'testing'
   require 'debugger'     
   require 'benchmark'
@@ -7,6 +27,8 @@ require 'json'
 require 'net/http'
 require 'chronic'
 require 'erubis'
+require 'net/http/post/multipart' # gem install multipart-post
+require 'stringio'
 
 # Design notes
 # the code / system that runs Thermo::Thermostat
@@ -29,6 +51,8 @@ module Thermo
   HYSTERESIS_DURATION_DEFAULT = "5 minutes"
   MAX_OPERATING_TIME__MINUTES_DEFAULT = "60"
   MAX_TEMP_F_DEFAULT = 80
+  # we force an upload of status_metadata if none uploaded for this long
+  UPLOAD_STATUS_METADATA_MAX_INTERVAL_DEFAULT = "60 minutes"
 
   # RUN_MODE determines if we are in a testing environment
   # primarily this is used to manage shelling out to run command
@@ -53,9 +77,8 @@ module Thermo
   # It then uses that booter to load a more detailed configuration file via URL
   class Configuration
     attr_accessor :boot, :config
-    attr_reader :using_url_for_config
     
-    # resets the internal variables by reloading them
+    # resets the internal variables by reloading them from file or default
     def reinitialize(options = {})
       boot_file = options[:boot_file] || BOOT_FILE_NAME
       @boot = load_boot_config_from_file(boot_file)
@@ -130,13 +153,15 @@ module Thermo
     # holds status data that can be used to display the run-time situation of the
     # thermostat and the heater it is controlling
     attr_reader :status_metadata # json string - complex structure
+    attr_reader :status_metadata_last_uploaded # date/time we last uploaded status_metadata
+    attr_reader :upload_status_max_interval # max period of time until we force upload of status (chronic parseable string)
     attr_reader :heater_last_on_time # datetime
     attr_reader :operation_mode # string
     attr_reader :daily_schedule # nested hash of structure {:times_of_operation => {:start => datetime, :end => datetime, :temp_f => int}}
     attr_reader :temp_override # hash with two properties - :time_stamp and :temp_f
     attr_reader :immediate # hash with two properties - :time_stamp and :temp_f
     attr_reader :last_user_input_time # date/time indicating the last time the user gave override/immediate input
-    
+
     # used for testing - if set, we use this value instead of system values
     attr_reader :override_current_time
     attr_accessor :override_current_temp_f
@@ -182,7 +207,14 @@ module Thermo
       @daily_schedule = {:times_of_operation => {}}
       @immediate = {}
       @temp_override = {}
-      @last_user_input_time = Time::new(0)
+      @last_user_input_time = Time::at(0)
+      @heater_state_changed = false
+      @status_metadata_last_uploaded ||= Time::at(0) # set upload time to earliest possible time
+      if @configuration.boot["config_source"] && @configuration.boot["config_source"]["upload_status_max_interval"]
+        @upload_status_max_interval = @configuration.boot["config_source"]["upload_status_max_interval"] 
+      else
+        @upload_status_max_interval = UPLOAD_STATUS_METADATA_MAX_INTERVAL_DEFAULT
+      end
     end
     
     def btj(bool)
@@ -202,6 +234,7 @@ module Thermo
     
     # calling this method will cause the internal metadata to be updated with 
     # current values of the system
+    # metadata is stored in a string as a json structure
     def update_status_metadata
       json_template = <<-template
         {
@@ -223,6 +256,7 @@ module Thermo
             "heater_on": "<%=btj(self.heater_on?)%>"
             },
           "internal_state":{
+            "heater_name": "<%=self.heater_name%>",
             "goal_temp_f": "<%=self.goal_temp_f%>", 
             "current_time": "<%=self.current_time%>",
             "heater_last_on_time": "<%=self.heater_last_on_time%>",
@@ -239,6 +273,40 @@ module Thermo
       eruby = Erubis::Eruby.new(json_template)
       @status_metadata = eruby.result(binding())
       @status_metadata
+    end
+
+    # upload status_metadata if internal conditions require it
+    # We force an upload whenever the heater state has been changed
+    # We also upload periodically to keep the server up to date based on
+    def upload_status_metadata_if_required
+      # we parse statements here like "10 minutes after [time portion of last uploaded date]"
+      next_upload_time = self.parse_time("#{upload_status_max_interval} after #{@status_metadata_last_uploaded.strftime('%I:%M%p')}")
+      if heater_state_changed? || (self.current_time > next_upload_time)
+        upload_status_metadata 
+      end
+    end
+
+    # upload status metadata to configured endpoint
+    def upload_status_metadata
+      upload_url = self.configuration.boot["config_source"]["upload_status_url"]
+      retval = false
+      if upload_url
+        retval = true
+        url = URI.parse(upload_url)
+        filename = File::split(url.path)[0]
+        file = StringIO.new(self.update_status_metadata)
+        request = Net::HTTP::Post::Multipart.new url.path,
+          "file" => UploadIO.new(file, "text/json", filename)
+        response = Net::HTTP.start(url.host, url.port) do |http|
+          http.request(request)
+        end
+        if response.code.to_s != '200'
+          log("Failed to upload status metadata", 5)
+        else
+          @status_metadata_last_uploaded = self.current_time
+        end
+      end
+      retval
     end
 
     # set up hardware ports to communicate with relay and thermostat
@@ -334,6 +402,9 @@ module Thermo
       retval
     end
 
+    def heater_name
+      self.configuration.config["heater_name"] || "Unnamed heater (set name in config file)"
+    end
 
     # TODO make a new method or signature that calls the server endpoint .../if-file/newer-than
     # which will only return the config file if it is newer than the one we have
@@ -366,6 +437,7 @@ module Thermo
           raise UnknownSchedule.new("Unknown schedule found in configuration file. Schedule provided: \"#{schedule_mode}\"")
       end
       update_status_metadata
+      upload_status_metadata_if_required
       log(status_metadata,9)
     end
 
@@ -391,7 +463,7 @@ module Thermo
 
     def immediate_start_time
       if self.configuration.config["immediate"] && self.configuration.config["immediate"]["time_stamp"]
-        Chronic.parse(self.configuration.config["immediate"]["time_stamp"])
+        self.parse_time(self.configuration.config["immediate"]["time_stamp"])
       else
         Time::new(0)
       end
@@ -466,7 +538,7 @@ module Thermo
     
     def temp_override_start_time
       if self.configuration.config["temp_override"] && self.configuration.config["temp_override"]["time_stamp"]
-        Chronic.parse(self.configuration.config["temp_override"]["time_stamp"])
+        self.parse_time(self.configuration.config["temp_override"]["time_stamp"])
       else
         Time::new(0)
       end
@@ -561,10 +633,21 @@ module Thermo
       temperature.insert(temperature.size-3,".").to_f
     end
     
+    # returns true if the heater has been changed during current process_schedule run
+    def heater_state_changed?
+      @heater_state_changed
+    end
+    # called to indicate that the heater state has been changed
+    def record_heater_state_change!
+      @heater_state_changed = true
+    end
+
     def heater_on=(state)
       if state
+        record_heater_state_change! if !heater_on?
         self.execute_system_commands(HEATER_ON_CMD)
       else
+        record_heater_state_change! if heater_on?
         self.execute_system_commands(HEATER_OFF_CMD)
       end
       @heater_on_state = state

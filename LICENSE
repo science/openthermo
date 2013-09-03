@@ -1,0 +1,32 @@
+# License
+(c) 2013 Steve Midgley 
+http://www.gnu.org/licenses/gpl-3.0.txt
+
+    This file is part of the Open Thermostat project.
+
+    The Open Thermostat project is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    The Open Thermostat project is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with The Open Thermostat project.  
+    If not, see <http://www.gnu.org/licenses/>.
+
+
+## Author's statement on warranties, conditions, guarantees or fitness of software for any purpose:
+
+No warranty is expressed or implied, per the provided license. If you use this software it is vital that you understand this.
+This software could be used to control expensive heating or other hardware equipment. There is no guarantee that it will function properly
+for your hardware, even if the tests are working and you install it correctly. It could damage your heating equipment.
+It could cause the heating equipment to malfunction or break down. 
+It could cause damage to property, create fires, gas leaks or electrical malfunctions.
+It could harm or kill humans or animals. It could do other, unknown harmful things.
+I nor any contributor not anyone but you has any liability for what you do with this software, or from the effects of operating this software.
+You cannot use this software without agreeing to the provided license which prevents you from seeking damages or other recourse
+for any function or lack of function related to this software, as described above or otherwise.

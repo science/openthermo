@@ -2,7 +2,9 @@
   "debug": {"log_level": 0},
   "config_source": {
     "immediate_polling_seconds": 300,
-    "config_url": "http://127.0.0.1:8080/api/abc123xyz/file/backbedroom.json"
+    "config_url": "http://127.0.0.1:8080/api/abc123xyz/file/backbedroom.json",
+    "upload_status_url": "http://127.0.0.1:8080/api/abc123xyz/file/backbedroom.status.json",
+    "upload_status_max_interval": "15 minutes"
   },
   "operating_parameters": {
     "max_temp_f": 79,
