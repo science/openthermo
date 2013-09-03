@@ -4,7 +4,13 @@ _a network-enabled thermostat controller_
 # Overview
 A DIY thermostat project designed to let you operate multiple network controlled thermostats on heaters of various types.
 
-Currently, supported hardware is a Raspberry Pi with particular electronics and driver support. More details on these coming soon.
+Currently, supported hardware is a Raspberry Pi with particular electronics and driver support. A schematic detailing the custom
+electronics that connects to the Raspberry Pi are included with this project at this URL: https://raw.github.com/science/thermoruby/master/docs/open-thermostat-wiring-schematic_v1.png
+
+There are several configuration libraries required for this project to work with the hardware above, when running in production mode
+on a RaspberryPi:
+* 1-wire control library: http://www.raspberrypi-spy.co.uk/2013/03/raspberry-pi-1-wire-digital-thermometer-sensor/
+* GPIO WiringPi tools: http://wiringpi.com/
 
 There are several parts of this project:
 
@@ -16,15 +22,11 @@ More documentation to come, and contact welcome from interested users or contrib
 # Installation
 To install, be sure you have required libraries which can be found in thermoclient.rb file. GEMSPEC file forthcoming. Ruby 1.9.3 was used in development.
 
-To test, you must also have node.js installed or an equivalent web server exposing the API specified in the boot.json files (named valid-thermo-boot.json.orig in test).
-If you wish to use an alternative test webserver, basically that server must make your configuration files available at the URL specified in boot.json for the key "config_url"
-For testing, this webserver must make that URL available by mounting the test folder to that location.
-
-Node.js server requires restify, semaphore and nodeunit.
+To test, you must also have thermoserver project installed or an equivalent web server exposing the API specified in the docs folder of thermoserver.
 
 # Testing
-If you are using Node.js to run tests, you must first start the webserver prior to running tests. On Windows you can run "startserver.cmd" in the test folder. 
-For Linux, you start the server with the command: "node ../server/thermo-stever.js start"
+If you are using thermoserver to run tests, you must first start the webserver prior to running tests. On Windows you can run "startserver.cmd" in the test folder. 
+For Linux, you start the server with the command: "ruby ../../server/thermoserver.rb" from the test folder, assuming you have thermoserver installed in a folder parallel to thermoruby.
 
 Once the server is running, you can start the tests from within the test folder with: "ruby test-thermoclient.rb"
 
@@ -66,8 +68,6 @@ Boot file field definitions:
   * max_operating_time_minutes: heater will not be allowed to operate longer than this number of minutes
     * Note: heater will be allowed to turn on again after being shut off due to max operating time after hysteresis_duration elapses
   * hysteresis_duration: A period of time that must elapse after the heater is turned off before it is allowed back on again. This prevents small fluctuations in room temperature from causing the heater to cycle on and off too frequently.
-
-
 
 A configuration file looks like:
 ```json
@@ -211,6 +211,14 @@ This prevents overly rapid cycles of the heater being turned on or off. This val
 insulation characteristics of your house. A house which is poorly insulated and cools off rapidly should probably have a lower
 hysteresis duration value than a well insulated house that cools down slowly, in order to maintain a reasonable range of 
 temperature in the house.
+
+# Status metadata upload
+Thermoruby will periodically upload status metadata to the server via a custom upload path (including pre-shared API key).
+Whenever the heater goes on/off (changes state) the metadata will be updated, or after a timeout period specified in the boot file.
+The status metadata file holds a lot of information about the operating state of the thermostat including the room temperature,
+whether the heater is on or off, the goal temperature the thermostat is attempting to reach if the heater is on, and various
+other related data. Generally this information is uploaded to the server because the client applications interacting with
+the thermostat will want access to this information.
 
 
 # License
