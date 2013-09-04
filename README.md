@@ -1,11 +1,11 @@
-#The Open Thermostat Project
-_a network-enabled thermostat controller_
+# The Open Thermostat Project
+_A network-enabled thermostat controller_
 
 # Overview
 A DIY thermostat project designed to let you operate multiple network controlled thermostats on heaters of various types.
 
 Currently, supported hardware is a Raspberry Pi with particular electronics and driver support. A schematic detailing the custom
-electronics that connects to the Raspberry Pi are included with this project at this URL: https://raw.github.com/science/thermoruby/master/docs/open-thermostat-wiring-schematic_v1.png
+electronics that connects to the Raspberry Pi are included with this project at this URL: ![Wiring Schematic for Thermostat](https://raw.github.com/science/thermoruby/master/docs/open-thermostat-wiring-schematic_v1.png)
 
 There are several configuration libraries required for this project to work with the hardware above, when running in production mode
 on a RaspberryPi:
@@ -199,13 +199,13 @@ A boot.json file containing these three (required) safety options is:
 }
 ```
 
-## Maximum operating temperature
+### Maximum operating temperature
 Defines the maximum temperature possible regardless of the configuration file settings or any other operations.
 
-## Maximum operating time
+### Maximum operating time
 Defines the maximum period the heater is allowed to run before being shut off.
 
-## Hysteresis duration
+### Hysteresis duration
 Defines the period of time that the heater is required to be shut off before it is allowed to be turned on again.
 This prevents overly rapid cycles of the heater being turned on or off. This value should be adjusted based on the
 insulation characteristics of your house. A house which is poorly insulated and cools off rapidly should probably have a lower
