@@ -5,7 +5,7 @@ _A network-enabled thermostat controller_
 A DIY thermostat project designed to let you operate multiple network controlled thermostats on heaters of various types.
 
 Currently, supported hardware is a Raspberry Pi with particular electronics and driver support. A schematic detailing the custom
-electronics that connects to the Raspberry Pi are included with this project at this URL: ![Wiring Schematic for Thermostat](https://raw.github.com/science/thermoruby/master/docs/open-thermostat-wiring-schematic_v1.png)
+electronics that connects to the Raspberry Pi are included with this project at this URL: ![Wiring Schematic for Thermostat](https://raw.github.com/science/openthermo/master/thermoclient/docs/open-thermostat-wiring-schematic_v1.png)
 
 There are several configuration libraries required for this project to work with the hardware above, when running in production mode
 on a RaspberryPi:
