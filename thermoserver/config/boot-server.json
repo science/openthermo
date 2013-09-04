@@ -1,0 +1,7 @@
+{
+  "config": {
+    "port": 8080,
+    "api_key": "WAtJD7txQj8WxfKBHMQPaKuR7Mf4Yu4Mn",
+    "base_folder": "./data"
+  }
+}
