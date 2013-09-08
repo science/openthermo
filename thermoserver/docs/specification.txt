@@ -12,7 +12,15 @@ GET: /api/[key]/file/[thermo-name]
   GETs [thermo-name file]
 GET: /api/[key]/if-file/newer-date/[date-string]/[thermo-name]
   Only returns content if file is newer than date specified
-  [date-string] in URI::escaped, Chronic-parsable format *without* slashes such as "10-18-22%2010:05am"
+  [date-string] in URI::escaped, Chronic-parsable format *without* slashes such as: 
+   "10-18-22%2010%3A05am" (represents: 10-18-22 10:05am)
+
+In progress
+GET: /api/[key]/list/[pattern]
+  Returns JSON payload with array of filenames corresponding to files matching pattern
+  [pattern] can only be ascii chars 0-9 and hyphen - no wild card matches
+    Primary use-case is to obtain all "config" or "status" files on the server
+
 
 Planned
 GET: /api/[key]/if-file/not-match-hash/[hash-string]/thermo-name]

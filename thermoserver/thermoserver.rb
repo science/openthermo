@@ -94,6 +94,7 @@ module Thermoserver
         retval[:status] = 403 # not authorized (re-auth won't help)
         retval[:status_message] = "File specified #{html_filename} contains impermissible path."
       elsif !File::exists?(rooted_filename)
+        retval[:authorized] = true
         retval[:status] = 404 # not found
         retval[:status_message] = "File specified #{html_filename} does not exist."
       elsif !filename.match(/^[a-zA-Z0-9.]+$/)
@@ -121,12 +122,34 @@ module Thermoserver
     retval = {:authorized => false, :status => 500}
     if filename_is_safe?(filename) && File::exists?(rooted_filename)
       if File::mtime(filename) > date
+        # if the file has been modified we delegate to get_file to try to retrieve the file
         retval = self.get_file(options)
       else
+        # we return 204/OK but no content b/c file has not been modified
         retval = {:authorized => true, :status => 204}
       end
     else
       retval = self.get_file(options) # we call get_file here even though it will fail, just to benefit from status code setting
+    end
+    retval
+  end
+
+  def self.get_list_of_files(options)
+    pattern = options[:pattern]
+    base_folder = options[:base_folder]
+    retval = {:authorized => false, :status => 500, :status_message => "Unknown error in list request processing."}
+    if filename_is_safe?(pattern)
+      # get files matching pattern in data folder
+      list = Dir["*#{pattern}*"]
+      if list.length > 0
+        results_json = {:file_list => list}.to_json
+        retval = {:authorized => true, :status => 200,
+          :results_json => results_json}
+      else
+        retval = {:authorized => true, :status => 404, :status_message => "No files found for pattern #{pattern}"}
+      end
+    else
+      retval = {:authorized => false, :status => 403, :status_message => "Impermissible pattern requested."}
     end
     retval
   end
@@ -175,7 +198,7 @@ get "/api/#{config.api_key}/file/:thermoname" do
   filename = params[:thermoname]
   file_hash = Thermoserver::get_file(:filename=>filename, :base_folder => config.base_folder)
   retval = ""
-  if file_hash[:authorized]
+  if file_hash[:authorized] && file_hash[:status] == 200
     retval = file_hash[:file]
   else # not authorized
     retval = file_hash[:status_message]
@@ -184,6 +207,8 @@ get "/api/#{config.api_key}/file/:thermoname" do
   retval
 end
 
+# returns file specified as :thermoname if newer than :date
+# date is a uri encoded Chronic parseable format without slashes (eg 10-18-2013 5:06pm)
 get "/api/#{config.api_key}/if-file/newer-than/:date/:thermoname" do
   date = params[:date]
   filename = params[:thermoname]
@@ -196,6 +221,22 @@ get "/api/#{config.api_key}/if-file/newer-than/:date/:thermoname" do
   else # not authorized
     retval = file_hash[:status_message]
     response.status = file_hash[:status]
+  end
+  retval
+end
+
+# returns JSON array of filenames that match :pattern
+# pattern can only contain a-z 0-9 hyphen
+get "/api/#{config.api_key}/list/:pattern" do
+  pattern = params[:pattern]
+  file_hash = Thermoserver::get_list_of_files({:pattern=>pattern, :base_folder => config.base_folder})
+  if file_hash[:authorized] && file_hash[:status] == 200
+    response.status = file_hash[:status]
+    content_type 'application/json', :charset => 'utf-8'
+    retval = file_hash[:results_json]
+  else  
+    response.status = file_hash[:status]
+    retval = file_hash[:status_message]
   end
   retval
 end

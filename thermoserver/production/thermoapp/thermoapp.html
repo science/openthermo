@@ -1,0 +1,34 @@
+<html>
+<head>
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+<script src="libs/thermoapp.js"></script>
+</head>
+<body>
+<!--
+Several tasks to accomplish:
+  * Server provides list of what heater status files are available
+    API: 
+      GET TBD
+      Populate internal JSON structure with these files
+  * App downloads some or all of these status files
+    API: GET /api/.../file/..status file name..
+    * Each heater status file should indicate what config file that thermostat is consuming
+      * Each config file should be downloaded
+      API: 
+        Obtain config URL & file name from status file json
+        GET /api/.../file/..config file name..
+    * Each status file should contain user-readable name/descr of that thermostat
+  * UI pull down of all heater status files by name
+    API: Populate pull down from internal JSON structure
+    * Selecting a status file shows operating status of that heater
+    * Also provides change status ability
+      * Change heater to immediate mode, set temp
+      * Change heater to temp override, set temp
+      * Change heater to off
+      * Edit schedule file for heater (harder)
+    * On change status, config file for heater should be edited with new info and uploaded to server
+      * API: POST /api/.../file/..config file name..
+!-->
+
+</body>
+</html>
