@@ -1,0 +1,694 @@
+{
+	"auto_complete":
+	{
+		"selected_items":
+		[
+			[
+				"sta",
+				"status"
+			],
+			[
+				"stat",
+				"status_message"
+			],
+			[
+				"assert",
+				"assert_equal"
+			],
+			[
+				"results",
+				"results_json"
+			],
+			[
+				"base",
+				"base_folder"
+			],
+			[
+				"filen",
+				"filename_is_safe"
+			],
+			[
+				"get_",
+				"get_list_of_files"
+			],
+			[
+				"AR",
+				"ARGV"
+			],
+			[
+				"par",
+				"parse"
+			],
+			[
+				"config_",
+				"config_source"
+			],
+			[
+				"status",
+				"status_metadata"
+			],
+			[
+				"upload",
+				"upload_url"
+			],
+			[
+				"heater_st",
+				"heater_state_changed"
+			],
+			[
+				"heater_",
+				"heater_name"
+			],
+			[
+				"ARG",
+				"ARGV_BOOT_FILE_INDEX"
+			],
+			[
+				"ba",
+				"base_folder"
+			],
+			[
+				"old",
+				"older_time_str"
+			],
+			[
+				"older",
+				"older_time_str"
+			],
+			[
+				"star",
+				"start_time_esc"
+			],
+			[
+				"st",
+				"start_time_str"
+			],
+			[
+				"start",
+				"start_time_str"
+			],
+			[
+				"orig",
+				"orig_file_time"
+			],
+			[
+				"ori",
+				"orig_file_time"
+			],
+			[
+				"AS",
+				"assert_equal"
+			],
+			[
+				"file",
+				"file"
+			]
+		]
+	},
+	"buffers":
+	[
+		{
+			"file": "thermoserver/production/thermoapp/libs/thermoapp-config.js",
+			"settings":
+			{
+				"buffer_size": 918,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "thermoserver/production/thermoapp/thermoapp.html",
+			"settings":
+			{
+				"buffer_size": 1107,
+				"line_ending": "Windows",
+				"name": "<script src=\"//ajax.googleapis.com/ajax/libs/jque"
+			}
+		},
+		{
+			"file": "thermoserver/production/thermoapp/libs/thermoapp.js",
+			"settings":
+			{
+				"buffer_size": 2653,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "thermoserver/production/thermoapp/boot-server.json",
+			"settings":
+			{
+				"buffer_size": 101,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "thermoserver/production/thermoapp/thermoapp-test.html",
+			"settings":
+			{
+				"buffer_size": 533,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "thermoserver/docs/specification.txt",
+			"settings":
+			{
+				"buffer_size": 2340,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "thermoserver/thermoserver.rb",
+			"settings":
+			{
+				"buffer_size": 9825,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "thermoserver/test/test-thermoserver.rb",
+			"settings":
+			{
+				"buffer_size": 5446,
+				"line_ending": "Windows"
+			}
+		}
+	],
+	"build_system": "",
+	"command_palette":
+	{
+		"height": 311.0,
+		"selected_items":
+		[
+			[
+				"Package Control: ",
+				"Package Control: Install Package"
+			],
+			[
+				"Package Control: a",
+				"Package Control: Add Repository"
+			]
+		],
+		"width": 472.0
+	},
+	"console":
+	{
+		"height": 160.0
+	},
+	"distraction_free":
+	{
+		"menu_visible": true,
+		"show_minimap": false,
+		"show_open_files": false,
+		"show_tabs": false,
+		"side_bar_visible": false,
+		"status_bar_visible": false
+	},
+	"file_history":
+	[
+		"/D/dev/openthermo/thermoserver/production/thermoapp/startserver.rb",
+		"/D/dev/openthermo/thermoserver/production/boot-server.json",
+		"/D/dev/openthermo/thermoserver/production/thermoapp/test-data/boot-server.json",
+		"/D/dev/openthermo/thermoserver/production/thermoapp/libs/qunit.js",
+		"/D/dev/openthermo/thermoserver/thermoserver.rb",
+		"/D/dev/apcsmooc/APCSMOOC/calc.java",
+		"/T/html.html",
+		"/D/dev/code-runner/templates/w2Lab",
+		"/D/dev/code-runner/templates/w2Lab1",
+		"/I/Desktop/SublimeText/Sublime Text license key.txt",
+		"/D/dev/openthermo/thermoclient/config/startserver.cmd",
+		"/D/dev/openthermo/thermoclient/config/startserver.rb",
+		"/T/wrong.txt",
+		"/D/dev/mooc-touch/db/coach_mooc/developing-student-skills-for-online-learning/collaboration.yml",
+		"/D/dev/mooc-touch/db/coach_mooc/developing-student-skills-for-online-learning/advocacy-self-reliance.yml",
+		"/D/dev/mooc-touch/db/coach_mooc/developing-student-skills-for-online-learning/critical-thinking-skills.yml",
+		"/D/dev/mooc-touch/db/coach_mooc/game-time/forum-etiquette.yml",
+		"/D/dev/mooc-touch/db/coach_mooc/game-time/one-massive-team.yml",
+		"/D/dev/openthermo/thermoclient/test/startserver.rb",
+		"/D/dev/openthermo/thermoclient/test/.gitignore",
+		"/D/dev/openthermo/.gitignore",
+		"/D/dev/openthermo/.gitattributes",
+		"/D/dev/openthermo/README.md",
+		"/D/dev/temp/post-file.cmd",
+		"/D/dev/temp/post-file.rb",
+		"/D/dev/temp/tempfile.rb",
+		"/D/dev/thermoruby/test/boot-server.json",
+		"/D/dev/thermoruby/test/valid-thermo-boot.json.orig",
+		"/D/dev/thermoruby/README.md",
+		"/D/dev/thermoruby/test/test-thermoclient.rb",
+		"/D/dev/thermoruby/thermoclient.rb",
+		"/D/dev/thermoruby/thermoclient_controller.rb",
+		"/D/dev/thermoserver/thermoserver.rb",
+		"/D/dev/temp/coderunner1.java",
+		"/D/dev/thermoruby/LICENSE",
+		"/D/dev/thermoruby/test/backbedroom.status.json",
+		"/D/dev/thermoruby/test/backbedroom.json.orig",
+		"/T/test.cmd",
+		"/D/dev/thermoruby/config/boot.json",
+		"/D/dev/thermoruby/test/invalid-malformed-thermo-boot.json.orig",
+		"/D/dev/thermoruby/test/invalid-missing-elements-thermo-boot.json.orig",
+		"/D/Program Files/Sublime Text 2.0.2 x64/Data/Packages/Ruby/Ruby.tmLanguage",
+		"/D/Program Files/Sublime Text 2.0.2 x64/Data/Pristine Packages/Ruby.sublime-package",
+		"/D/Program Files/Sublime Text 2.0.2 x64/Data/Packages/Ruby/Default.sublime-keymap",
+		"/D/Program Files/Sublime Text 2.0.2 x64/Data/Packages/Ruby/Ruby.sublime-build",
+		"/D/Program Files/Sublime Text 2.0.2 x64/Data/Packages/User/Ruby.sublime-settings",
+		"/D/dev/thermoruby/test/backbedroom.json.immediate.orig",
+		"/D/dev/thermoruby/test/backbedroom-override-immediate.json.orig",
+		"/D/dev/thermoruby/test/backbedroom-override-off.json.orig",
+		"/D/dev/thermoruby/test/backbedroom-override.json.orig",
+		"/D/dev/thermoruby/test/backbedroom.json.immediate_second.orig",
+		"/D/dev/thermoruby/test/backbedroom.json.changed.orig",
+		"/D/dev/thermoruby/test/backbedroom_hot.json.orig",
+		"/D/dev/thermoruby/test/invalid-malformed-backbedroom.json.orig",
+		"/D/dev/thermoruby/test/invalid-missing-element-backbedroom.json.orig",
+		"/D/dev/thermoruby/test/backbedroom.json.immediate_user_input.orig",
+		"/D/dev/thermoruby/config/backbedroom.json",
+		"/D/dev/thermoruby/test/simple.json.orig",
+		"/D/dev/thermoserver/config/boot-server.json",
+		"/D/dev/thermoserver/test/test-thermoserver.rb",
+		"/D/dev/thermoserver/docs/specification.txt",
+		"/D/Program Files/Sublime Text 2.0.2 x64/Data/Packages/User/Default (Windows).sublime-keymap",
+		"/D/Program Files/Sublime Text 2.0.2 x64/Data/Installed Packages/smart_cursor/smart_cursor.py",
+		"/D/Program Files/Sublime Text 2.0.2 x64/Data/Installed Packages/smart_cursor.py",
+		"/D/Program Files/Sublime Text 2.0.2 x64/Data/Packages/Default/Preferences.sublime-settings",
+		"/D/Program Files/Sublime Text 2.0.2 x64/Data/Packages/Ruby - User/downto(0)-{-n-..-}-(dow).sublime-snippet",
+		"/D/Program Files/Sublime Text 2.0.2 x64/Data/Packages/Ruby - User/do-obj-..-end-(doo).sublime-snippet",
+		"/D/Program Files/Sublime Text 2.0.2 x64/Data/Packages/Ruby - User/Completion Rules.tmPreferences",
+		"/D/Program Files/Sublime Text 2.0.2 x64/Data/Packages/User/Preferences.sublime-settings",
+		"/D/Program Files/Sublime Text 2.0.2 x64/Data/Packages/Ruby - User/lambda-{-args-..-}-(lam).sublime-snippet",
+		"/D/Program Files/Sublime Text 2.0.2 x64/Data/Packages/Ruby/do-obj-..-end-(doo).sublime-snippet",
+		"/D/Program Files/Sublime Text 2.0.2 x64/Data/Packages/User/XML.sublime-settings",
+		"/D/Program Files/Sublime Text 2.0.2 x64/Data/Packages/Default/Default (Windows).sublime-keymap",
+		"/T/Sublime Text 2.0.2 x64/Data/Packages/User/Preferences.sublime-settings",
+		"/T/Sublime Text 2.0.2 x64/Data/Packages/Default/Preferences.sublime-settings"
+	],
+	"find":
+	{
+		"height": 36.0
+	},
+	"find_in_files":
+	{
+		"height": 0.0,
+		"where_history":
+		[
+		]
+	},
+	"find_state":
+	{
+		"case_sensitive": false,
+		"find_history":
+		[
+			"test",
+			"'",
+			"\"",
+			"\\n\\n",
+			"&",
+			"youtube",
+			"STATUS_METADATA_UPLOAD_FILE",
+			"self",
+			"max_inter",
+			"@status_metadata_last_uploaded",
+			"debug",
+			"current_time",
+			"chronic",
+			"chronic.parsepase",
+			"chronic.parse",
+			"configuration.conf",
+			"raise",
+			"nothing",
+			"heater_state_mo",
+			"now",
+			"argv",
+			"ARGV",
+			"package",
+			"debug",
+			"load"
+		],
+		"highlight": true,
+		"in_selection": false,
+		"preserve_case": false,
+		"regex": true,
+		"replace_history":
+		[
+			"\\\\'",
+			"\\\"",
+			""
+		],
+		"reverse": false,
+		"show_context": true,
+		"use_buffer2": true,
+		"whole_word": false,
+		"wrap": true
+	},
+	"groups":
+	[
+		{
+			"selected": 2,
+			"sheets":
+			[
+				{
+					"buffer": 0,
+					"file": "thermoserver/production/thermoapp/libs/thermoapp-config.js",
+					"settings":
+					{
+						"buffer_size": 918,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								902,
+								902
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/JavaScript/JavaScript.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 22.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 1,
+					"file": "thermoserver/production/thermoapp/thermoapp.html",
+					"settings":
+					{
+						"buffer_size": 1107,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								166,
+								166
+							]
+						],
+						"settings":
+						{
+							"auto_name": "<script src=\"//ajax.googleapis.com/ajax/libs/jque",
+							"syntax": "Packages/HTML/HTML.tmLanguage",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 2,
+					"file": "thermoserver/production/thermoapp/libs/thermoapp.js",
+					"settings":
+					{
+						"buffer_size": 2653,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								2479,
+								2479
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/JavaScript/JavaScript.tmLanguage",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 754.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 3,
+					"file": "thermoserver/production/thermoapp/boot-server.json",
+					"settings":
+					{
+						"buffer_size": 101,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								59,
+								59
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/JavaScript/JSON.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 4,
+					"file": "thermoserver/production/thermoapp/thermoapp-test.html",
+					"settings":
+					{
+						"buffer_size": 533,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								418,
+								418
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/HTML/HTML.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 5,
+					"file": "thermoserver/docs/specification.txt",
+					"settings":
+					{
+						"buffer_size": 2340,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								856,
+								856
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Text/Plain text.tmLanguage",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 6,
+					"file": "thermoserver/thermoserver.rb",
+					"settings":
+					{
+						"buffer_size": 9825,
+						"regions":
+						{
+							"bookmarks":
+							{
+								"flags": 144,
+								"icon": "bookmark",
+								"regions":
+								[
+									[
+										3953,
+										3953
+									],
+									[
+										5732,
+										5732
+									],
+									[
+										9449,
+										9449
+									]
+								],
+								"scope": "bookmarks"
+							}
+						},
+						"selection":
+						[
+							[
+								7628,
+								7628
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Ruby/Ruby.tmLanguage",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 3833.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 7,
+					"file": "thermoserver/test/test-thermoserver.rb",
+					"settings":
+					{
+						"buffer_size": 5446,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								1942,
+								1978
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Ruby/Ruby.tmLanguage",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 1154.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				}
+			]
+		},
+		{
+			"selected": 0,
+			"sheets":
+			[
+				{
+					"buffer": 6,
+					"file": "thermoserver/thermoserver.rb",
+					"settings":
+					{
+						"buffer_size": 9825,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								6043,
+								6043
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Ruby/Ruby.tmLanguage",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 2801.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				}
+			]
+		}
+	],
+	"incremental_find":
+	{
+		"height": 0.0
+	},
+	"input":
+	{
+		"height": 36.0
+	},
+	"layout":
+	{
+		"cells":
+		[
+			[
+				0,
+				0,
+				1,
+				1
+			],
+			[
+				1,
+				0,
+				2,
+				1
+			]
+		],
+		"cols":
+		[
+			0.0,
+			0.669791666667,
+			1.0
+		],
+		"rows":
+		[
+			0.0,
+			1.0
+		]
+	},
+	"menu_visible": true,
+	"output.exec":
+	{
+		"height": 122.0
+	},
+	"replace":
+	{
+		"height": 70.0
+	},
+	"save_all_on_build": true,
+	"select_file":
+	{
+		"height": 0.0,
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"select_project":
+	{
+		"height": 0.0,
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"show_minimap": true,
+	"show_open_files": false,
+	"show_tabs": true,
+	"side_bar_visible": true,
+	"side_bar_width": 150.0,
+	"status_bar_visible": true
+}

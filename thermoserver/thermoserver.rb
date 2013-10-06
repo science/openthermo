@@ -61,7 +61,7 @@ module Thermoserver
     #checks on filename:
     #  there should be no path - just a filename
     #  filename should have no complex characters in it
-    File::basename(filename)==filename && filename.match(/^[a-zA-Z0-9.]+$/)
+    File::basename(filename)==filename && filename.match(/^[a-zA-Z0-9.-_]+$/) && !filename.match(/\.\./)
   end
 
   # gets filename specified 
@@ -134,6 +134,9 @@ module Thermoserver
     retval
   end
 
+  # returns a JSON array (:file_list) list of files matching :pattern in :base_folder
+  # options:
+  #  :pattern => simple pattern to glob with Dir object a-z0-9 only
   def self.get_list_of_files(options)
     pattern = options[:pattern]
     base_folder = options[:base_folder]
@@ -193,6 +196,8 @@ end
 # setup server
 set :server, 'thin'
 set :port, config.port
+
+puts "\nBase file folder:\n    #{File::expand_path(config.base_folder)}\n\n"
 
 get "/api/#{config.api_key}/file/:thermoname" do
   filename = params[:thermoname]

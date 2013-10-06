@@ -1,12 +1,4 @@
-<!doctype html>
-<html>
-<head>
-  <script src="//ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
-  <script src="libs/thermoapp-config.js"></script>
-  <script src="libs/thermoapp.js"></script>
-</head>
-<body>
-<!--
+/*
 # copyright 2013 Steve Midgley 
 # http://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -25,7 +17,9 @@
 #     You should have received a copy of the GNU General Public License
 #     along with The Open Thermostat project.  
 #     If not, see <http://www.gnu.org/licenses/>.
-!-->
 
-</body>
-</html>
+*/
+
+function getAPIKey(){
+  return '[your-api-key-here]'
+}

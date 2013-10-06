@@ -1,5 +1,6 @@
 ## Openthermo Custom Ignore ##
-
+.sublime-project
+.sublime-workspace
 
 #################
 ## Eclipse
