@@ -17,11 +17,13 @@
 #     along with The Open Thermostat project.  
 #     If not, see <http://www.gnu.org/licenses/>.
 
-Thermo uploads status file to server
-Thermo downloads config file from server
-  Thermo downloads config file in wait-for-change mode
-Client uploads config file to server
-Client downloads status file from server
+USAGE PATTERNS
+
+ThermoClient uploads status file to server
+ThermoClient downloads config file from server
+  ThermoClient loops on download config file using 'if-file/newer-date'
+ThermoApp uploads config file to server based on user input changes
+ThermoApp downloads status file from server
 
 API
 
@@ -34,7 +36,7 @@ GET: /api/[key]/if-file/newer-date/[date-string]/[thermo-name]
   [date-string] in URI::escaped, Chronic-parsable format *without* slashes such as: 
    "10-18-22%2010%3A05am" (represents: 10-18-22 10:05am)
 
-In progress
+In progress APIs
 GET: /api/[key]/list/[pattern]
   Returns JSON payload with array of filenames corresponding to files matching pattern
   [pattern] can only be ascii chars 0-9 and hyphen - no wild card matches

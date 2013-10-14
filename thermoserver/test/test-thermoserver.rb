@@ -43,6 +43,7 @@ class ThermoserverTest < Minitest::Test
   # used as a signling function into server to indicate debugging
   # makes it easy to cause the debugger to break only when hitting a line of code
   # when a specific test method is running
+  # debug(true)
 
   def setup
     FileUtils::cp(VALID_CONFIG_JSON_ORIG, CONFIG_JSON)

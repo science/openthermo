@@ -186,9 +186,14 @@ end # Thermoserver
 
 config = Thermoserver::Configuration.new
 # used in testing
+
+# call debug! in code (in this file) to invoke the debugger. Only 
+# invokes debugger if debug variable has been set in Thermoserver
 def debug!
   debugger if Thermoserver::debug?
 end 
+# Convenience method for test framework. Call this with true
+# in order to enable debug! to break at checkpoint
 def debug(val)
   Thermoserver::debug(val)
 end
@@ -199,6 +204,14 @@ set :port, config.port
 
 puts "\nBase file folder:\n    #{File::expand_path(config.base_folder)}\n\n"
 
+# Application server (generates user interface from erb templates)
+get "/app/:page" do
+  erb params[:page].to_sym
+end
+
+# API Server (provides/stores configuration)
+
+# Return file contents if file exists
 get "/api/#{config.api_key}/file/:thermoname" do
   filename = params[:thermoname]
   file_hash = Thermoserver::get_file(:filename=>filename, :base_folder => config.base_folder)
@@ -231,7 +244,8 @@ get "/api/#{config.api_key}/if-file/newer-than/:date/:thermoname" do
 end
 
 # returns JSON array of filenames that match :pattern
-# pattern can only contain a-z 0-9 hyphen
+# pattern can only contain a-z 0-9 dot hyphen underscore
+# particularly no path information is permitted
 get "/api/#{config.api_key}/list/:pattern" do
   pattern = params[:pattern]
   file_hash = Thermoserver::get_list_of_files({:pattern=>pattern, :base_folder => config.base_folder})
@@ -246,7 +260,8 @@ get "/api/#{config.api_key}/list/:pattern" do
   retval
 end
 
-# expects a file uploaded under params key "file"
+# Receive a file to store on disk named :thermoname
+# expects file contents to be uploaded under POST params key "file"
 post "/api/#{config.api_key}/file/:thermoname" do
   filename = params[:thermoname]
   file = params[:file][:tempfile] if params[:file]
