@@ -17,10 +17,15 @@
 #     along with The Open Thermostat project.  
 #     If not, see <http://www.gnu.org/licenses/>.
 
+# Credit to Rob Sanders for favicon.ico icon: http://www.iconarchive.com/artist/rob-sanders.html
+# Icon may only be used for non-commercial use, with attribution
+
+
 require 'rubygems'
 require 'sinatra'
 require 'json'
 require 'fileutils'
+require 'tempfile'
 require 'chronic'
 if ENV['RACK_ENV'] == 'testing'
   require 'debugger'
@@ -46,14 +51,16 @@ module Thermoserver
   # TODO Load these values from a config file
   # class instance provides access to config data required to run server
   class Configuration
-    attr_reader :port, :base_folder, :api_key
+    attr_reader :port, :base_folder, :api_key, :app_api_key, :images_folder
     
     def initialize(options = {})
       boot_file = ARGV[ARGV_BOOT_FILE_INDEX] || ENV[ENV_BOOT_FILE_KEY] || options[:boot_file] || SERVER_BOOT_FILE
       @config = JSON.parse(File::read(boot_file))
       @base_folder = @config["config"]["base_folder"] || raise(Thermoserver::Error.new("base_folder not found in server boot file"))
       @api_key = @config["config"]["api_key"] || raise(Thermoserver::Error.new("api_key not found in server boot file"))
+      @app_api_key = @config["config"]["app_api_key"] || raise(Thermoserver::Error.new("api_key not found in server boot file"))
       @port = @config["config"]["port"] || raise(Thermoserver::Error.new("port not found in server boot file"))
+      @images_folder = 'assets/images' 
     end
   end
 
@@ -182,6 +189,15 @@ module Thermoserver
     end
     retval
   end
+
+  module API
+    def self.upload_file(params, config)
+      filename = params[:thermoname]
+      file = params[:file][:tempfile] if params[:file]
+      Thermoserver::post_file(:file=>file, :filename=>filename, :base_folder => config.base_folder)
+    end
+  end
+
 end # Thermoserver
 
 config = Thermoserver::Configuration.new
@@ -204,12 +220,86 @@ set :port, config.port
 
 puts "\nBase file folder:\n    #{File::expand_path(config.base_folder)}\n\n"
 
-# Application server (generates user interface from erb templates)
-get "/app/:page" do
+## Application server (generates user interface from erb templates)
+
+get "/app/:page/#{config.app_api_key}" do
   erb params[:page].to_sym
 end
 
-# API Server (provides/stores configuration)
+# return open thermo icon
+# Credit to Rob Sanders for icon: http://www.iconarchive.com/artist/rob-sanders.html
+get "/favicon.ico" do
+  favicon_path = File::join(settings.public_folder, config.images_folder, 'favicon.ico')
+  send_file(favicon_path)
+end
+
+## Web App API (responds to web page inputs to take actions)
+
+# Set the operation mode for the heater
+# If the configuration file does not exist, return an error
+get "/app-api/#{config.app_api_key}/:thermoname/operation_mode/:mode" do
+  # load the heater file for editing
+  mode = params[:mode]
+  filename = params[:thermoname]
+  file_hash = Thermoserver::get_file(:filename=>filename, :base_folder => config.base_folder)
+  if file_hash[:authorized] && file_hash[:status] == 200
+    file_contents = file_hash[:file]
+  else
+    retval = file_hash[:status_message]
+    response.status = file_hash[:status]
+    return retval
+  end      
+  heater_config = JSON.parse(file_contents)
+  # set "operation_mode" key to mode
+  heater_config["operation_mode"] = mode
+  # save the heater file
+  file_contents = JSON.generate(heater_config)
+  tempfile = Tempfile.new('thermo-operation-mode')
+  tempfile.write(file_contents)
+  upload_params = {:thermoname => filename, :file => {:tempfile=>tempfile}}
+  file_hash = Thermoserver::API::upload_file(upload_params,config)
+  response.status = file_hash[:status]
+  file_hash[:status_message] || ""
+end
+
+## TODO merge replicated code from above and below
+# Set the heater to temp_override or immediate ("hold") mode
+get "/app-api/#{config.app_api_key}/:thermoname/override_mode/:mode/:temp_f" do
+  mode = params[:mode]
+  temp_f = params[:temp_f]
+  if mode != "temp_override" && mode != "hold" && mode != "immediate"
+    response.status = 404
+    return "Invalid mode #{mode} specified."
+  end
+  if mode == "hold" # hold is just an api synonym for immediate
+    mode = "immediate" 
+  end
+  filename = params[:thermoname]
+  file_hash = Thermoserver::get_file(:filename=>filename, :base_folder => config.base_folder)
+  if file_hash[:authorized] && file_hash[:status] == 200
+    file_contents = file_hash[:file]
+  else
+    retval = file_hash[:status_message]
+    response.status = file_hash[:status]
+    return retval
+  end
+  heater_config = JSON.parse(file_contents)
+  # create override mode value
+  mode_value = {:temp_f => temp_f, :time_stamp => Time::now.to_s}
+  # set key to mode
+  heater_config[mode] = mode_value
+  # save the heater file
+  file_contents = JSON.generate(heater_config)
+  tempfile = Tempfile.new('thermo-operation-mode')
+  tempfile.write(file_contents)
+  upload_params = {:thermoname => filename, :file => {:tempfile=>tempfile}}
+  file_hash = Thermoserver::API::upload_file(upload_params,config)
+  response.status = file_hash[:status]
+  file_hash[:status_message] || ""
+end
+
+
+## API Server (provides/stores configuration)
 
 # Return file contents if file exists
 get "/api/#{config.api_key}/file/:thermoname" do
@@ -263,9 +353,7 @@ end
 # Receive a file to store on disk named :thermoname
 # expects file contents to be uploaded under POST params key "file"
 post "/api/#{config.api_key}/file/:thermoname" do
-  filename = params[:thermoname]
-  file = params[:file][:tempfile] if params[:file]
-  file_hash = Thermoserver::post_file(:file=>file, :filename=>filename, :base_folder => config.base_folder)
+  file_hash = Thermoserver::API::upload_file(params, config)
   response.status = file_hash[:status]
   file_hash[:status_message] || ""
 end

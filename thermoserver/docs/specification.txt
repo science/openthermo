@@ -25,7 +25,7 @@ ThermoClient downloads config file from server
 ThermoApp uploads config file to server based on user input changes
 ThermoApp downloads status file from server
 
-API
+THERMOCLIENT API
 
 POST: /api/[key]/file/[thermo-name]
   JSON payload under key "file" - upload is written directly to file [thermo-name]
@@ -35,13 +35,25 @@ GET: /api/[key]/if-file/newer-date/[date-string]/[thermo-name]
   Only returns content if file is newer than date specified
   [date-string] in URI::escaped, Chronic-parsable format *without* slashes such as: 
    "10-18-22%2010%3A05am" (represents: 10-18-22 10:05am)
-
-In progress APIs
 GET: /api/[key]/list/[pattern]
   Returns JSON payload with array of filenames corresponding to files matching pattern
-  [pattern] can only be ascii chars 0-9 and hyphen - no wild card matches
+  [pattern] can only be ascii chars 0-9 period and hyphen - no wild card matches
     Primary use-case is to obtain all "config" or "status" files on the server
 
+WEB APP API
+In-progress
+PUT: /webapi/[web-key]/[thermo-name]/off
+  Sets the named heater to off state
+PUT: /webapi/[web-key]/[thermo-name]/on
+  Unsets the named heater off state
+PUT: /webapi/[web-key]/[thermo-name]/hold/[temp_f]
+  Sets the named heater to hold temp at temp_f (hold temp is permanent until manually disabled)
+PUT: /webapi/[web-key]/[thermo-name]/override/[temp_f]
+  Sets the named heater to override temp at temp_f (override temp is temporary until next scheduled event)
+PUT: /webapi/[web-key]/[thermo-name]/resume_schedule
+  Returns the named heater to normal scheduled operation
+POST: /webapi/[web-key]/[thermo-name]/initialize
+  Creates a new file with default configuration for thermo-name. If thermo-name exists, returns error.
 
 Planned
 GET: /api/[key]/if-file/not-match-hash/[hash-string]/thermo-name]

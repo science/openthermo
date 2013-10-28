@@ -32,6 +32,14 @@ Once the server is running, you can start the tests from within the test folder 
 
 Tests have been confirmed working on Raspberry Pi Wheezy Debian and Windows 8.
 
+# Operating
+It is possible to operate a heater with the current version, but there is no support yet for web-based changes to the configuration file. You must manually create the configuration json file and put it the working folder specified by the boot-server.json file that is in the working folder when you start thermoserver.rb. You must configure your thermoclient to load that configuration file from the thermoserver via a URL in the boot.json file of thermoclient.
+
+A web based editing system for modifying configuration files is forthcoming.
+
+## Operating security
+Security at this time is managed via hard coded API keys built-into the URLs of the API. To fully secure this system you must operate entirely over HTTPS. You configure the API key in the boot.json and boot-server.json files for thermclient and thermoserver, respectively. The API key in the boot.json is built into the URL that you access the thermoserver configuration file appropriate for that thermoclient instance.
+
 # Operation boot up
 The thermoclient_controller.rb is the file you run from the command line to maintain control over your heater.
 This file loads the thermostat system itself. The thermostat system (thermoclient.rb) first looks for a boot.json

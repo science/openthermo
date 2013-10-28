@@ -43,12 +43,14 @@ class ThermoserverTest < Minitest::Test
   # used as a signling function into server to indicate debugging
   # makes it easy to cause the debugger to break only when hitting a line of code
   # when a specific test method is running
+  
   # debug(true)
 
   def setup
     FileUtils::cp(VALID_CONFIG_JSON_ORIG, CONFIG_JSON)
     @config = Thermoserver::Configuration.new
     @api_key = @config.api_key
+    @app_api_key = @config.app_api_key
   end
   
   def teardown
@@ -60,9 +62,63 @@ class ThermoserverTest < Minitest::Test
     Sinatra::Application
   end
 
+  # this just makes sure the test file boot-server.json has expected data
   def test_api_alignment
     assert_equal @api_key, 'abc123def'
+    assert_equal @app_api_key, "xyz789xyz"
   end
+
+  ## Web App page tests
+
+  def test_webapp_get_file
+    get "/app/dashboard/#{@app_api_key}"
+    assert_equal 200, last_response.status, last_response.body
+    get "/app/dashboard"
+    assert_equal 404, last_response.status, last_response.body
+  end
+
+  ## App API tests
+
+  def test_webapi_turn_heater_off
+    config_json = JSON.parse(File::read(CONFIG_JSON))
+    # verify operation mode is not off
+    assert_equal "daily_schedule", config_json["operation_mode"]
+    get "/app-api/#{@app_api_key}/#{CONFIG_JSON}/operation_mode/off"
+    assert_equal 200, last_response.status, last_response.body
+    # verify operation mode is off
+    config_json = JSON.parse(File::read(CONFIG_JSON))
+    assert_equal "off", config_json["operation_mode"]
+    assert_equal "off", config_json["off"]
+
+    # turn the operation mode back to "daily_schedule"
+    get "/app-api/#{@app_api_key}/#{CONFIG_JSON}/operation_mode/daily_schedule"
+    assert_equal 200, last_response.status, last_response.body
+    # verify operation mode is off
+    config_json = JSON.parse(File::read(CONFIG_JSON))
+    assert_equal "daily_schedule", config_json["operation_mode"]
+    assert_equal "off", config_json["off"]
+  end
+
+  def test_webapi_turn_heater_off_invalid_config_file
+    # verify trying to modify a non-existent heater config file 
+    # results in an error
+    get "/app-api/#{@app_api_key}/invalid_heater.json/operation_mode/off"
+    assert_equal 404, last_response.status, last_response.body
+  end
+
+  def test_webapi_turn_heater_to_hold
+    get "/app-api/#{@app_api_key}/#{CONFIG_JSON}/override_mode/hold/74"
+    assert_equal 200, last_response.status, last_response.body
+    config_json = JSON.parse(File::read(CONFIG_JSON))
+    assert_equal "74", config_json["immediate"]["temp_f"]
+    assert_equal Time::now.to_s, config_json["immediate"]["time_stamp"]
+  end
+
+  def test_webapi_turn_heater_to_temp_override
+
+  end
+
+  ## Thermoclient API tests
 
   def test_get_file
     get "/api/#{@api_key}/file/#{CONFIG_JSON}"
@@ -150,5 +206,13 @@ class ThermoserverTest < Minitest::Test
   def test_functional_config_change
     
   end
+
+  def test_favicon
+    get "/favicon.ico"
+    assert_equal 200, last_response.status, last_response.body
+    favicon_orig_path = File::join(app.settings.public_folder, @config.images_folder, 'favicon.ico')
+    assert last_response.body == IO::binread(favicon_orig_path)
+  end
+
 
 end
