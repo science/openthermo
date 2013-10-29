@@ -82,6 +82,7 @@ A configuration file looks like:
 {
   "debug": {"log_level": 9},
   "operation_mode": "daily_schedule",
+  "default_mode": "daily_schedule"
   "daily_schedule": {
     "times_of_operation": [
       {"start": "12:00 am", "stop": "6:30 am", "temp_f": 60},
@@ -140,14 +141,13 @@ will be in effect until the temp_override option is removed from the file, or th
 revert to normal daily schedule operations.
 
 ## Immediate
-The immediate function serves to hold the temperature at a constant value for as long as the option is provided (the time_stamp on the option
-must be less than the current time as well -- allowing you to set an immediate temperature for some time in the future as well). A 
-config file where the immediate function is active looks like:
+The immediate function serves to hold the temperature at a constant value for as long as the option is provided (the time_stamp on the option must be less than the current time as well -- allowing you to set an immediate temperature for some time in the future as well). A config file where the immediate function is active looks like:
 
 ```json
 {
   "debug": {"log_level": 9},
   "operation_mode": "immediate",
+  "default_mode": "daily_schedule"
   "daily_schedule": {
     "times_of_operation": [
       {"start": "12:00 am", "stop": "6:30 am", "temp_f": 60},
@@ -161,6 +161,8 @@ config file where the immediate function is active looks like:
 }
 ```
 In this mode of operation, the thermostat system will try to maintain the temperature at 74 degrees until the operation_mode or immediate temp_f value is changed.
+
+The "default_mode" key is used to store the operation_mode that should be initiated when "immediate" mode is turned off. This can simplify the user experience, as the user can simply toggle immediate mode on/off and the heater can resume regularly scheduled operation. In the future additional modes of operation may be enabled, so this value will be more important then.
 
 ## Off
 The off function serves to ensure the thermostat system keeps the heater off in all cases. An example of this config file is:

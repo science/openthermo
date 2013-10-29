@@ -31,6 +31,7 @@ require 'chronic'
 require 'uri'
 
 VALID_CONFIG_JSON_ORIG = 'valid-backbedroom.confg.json.orig'
+VALID_CONFIG_DEFAULT_OFF_JSON_ORIG = 'valid-backbedroom.default-off.confg.json.orig'
 
 STATUS_JSON = 'backbedroom.status.json'
 CONFIG_JSON = 'backbedroom.config.json'
@@ -55,7 +56,7 @@ class ThermoserverTest < Minitest::Test
   
   def teardown
     FileUtils::safe_unlink(CONFIG_JSON)
-    raise if File::exist?(CONFIG_JSON)
+    raise if File::exists?(CONFIG_JSON)
   end
 
   def app
@@ -79,11 +80,26 @@ class ThermoserverTest < Minitest::Test
 
   ## App API tests
 
+  def test_publicapi_validate_config
+    filedata = File::read(CONFIG_JSON)
+    filename = CONFIG_JSON
+    tempfile = Tempfile.new('validate_config')
+    tempfile.write(filedata)
+    tempfile.rewind
+    upload_file = Rack::Test::UploadedFile.new(tempfile.path, "text/json")    
+    post "/public-api/validate/config", "file" => upload_file
+    assert_equal 200, last_response.status, last_response.body
+    retval = JSON.parse(last_response.body)
+    assert_equal "valid", retval["json"], retval.inspect
+    assert_equal [], retval["fields"], retval.inspect
+    tempfile.unlink
+  end
+
   def test_webapi_turn_heater_off
     config_json = JSON.parse(File::read(CONFIG_JSON))
     # verify operation mode is not off
     assert_equal "daily_schedule", config_json["operation_mode"]
-    get "/app-api/#{@app_api_key}/#{CONFIG_JSON}/operation_mode/off"
+    put "/app-api/#{@app_api_key}/#{CONFIG_JSON}/operation_mode/off"
     assert_equal 200, last_response.status, last_response.body
     # verify operation mode is off
     config_json = JSON.parse(File::read(CONFIG_JSON))
@@ -91,7 +107,7 @@ class ThermoserverTest < Minitest::Test
     assert_equal "off", config_json["off"]
 
     # turn the operation mode back to "daily_schedule"
-    get "/app-api/#{@app_api_key}/#{CONFIG_JSON}/operation_mode/daily_schedule"
+    put "/app-api/#{@app_api_key}/#{CONFIG_JSON}/operation_mode/daily_schedule"
     assert_equal 200, last_response.status, last_response.body
     # verify operation mode is off
     config_json = JSON.parse(File::read(CONFIG_JSON))
@@ -102,20 +118,99 @@ class ThermoserverTest < Minitest::Test
   def test_webapi_turn_heater_off_invalid_config_file
     # verify trying to modify a non-existent heater config file 
     # results in an error
-    get "/app-api/#{@app_api_key}/invalid_heater.json/operation_mode/off"
+    put "/app-api/#{@app_api_key}/invalid_heater.json/operation_mode/off"
     assert_equal 404, last_response.status, last_response.body
   end
 
   def test_webapi_turn_heater_to_hold
-    get "/app-api/#{@app_api_key}/#{CONFIG_JSON}/override_mode/hold/74"
+    put "/app-api/#{@app_api_key}/#{CONFIG_JSON}/override_mode/hold/74"
+    assert_equal 200, last_response.status, last_response.body
+    config_json = JSON.parse(File::read(CONFIG_JSON))
+    assert_equal Time::now.to_s, config_json["immediate"]["time_stamp"]
+    assert_equal "74", config_json["immediate"]["temp_f"]
+    assert_equal "immediate", config_json["operation_mode"]
+  end
+
+  def test_webapi_turn_heater_to_temp_override
+    put "/app-api/#{@app_api_key}/#{CONFIG_JSON}/override_mode/temp_override/68"
+    assert_equal 200, last_response.status, last_response.body
+    config_json = JSON.parse(File::read(CONFIG_JSON))
+    assert_equal Time::now.to_s, config_json["temp_override"]["time_stamp"]
+    assert_equal "68", config_json["temp_override"]["temp_f"]
+    assert_equal "daily_schedule", config_json["operation_mode"]
+    assert_equal "daily_schedule", config_json["default_mode"]
+  end
+
+  def test_webapi_resume_normal_operations
+    # first we turn on hold mode
+    put "/app-api/#{@app_api_key}/#{CONFIG_JSON}/override_mode/hold/74"
     assert_equal 200, last_response.status, last_response.body
     config_json = JSON.parse(File::read(CONFIG_JSON))
     assert_equal "74", config_json["immediate"]["temp_f"]
     assert_equal Time::now.to_s, config_json["immediate"]["time_stamp"]
+    assert_equal "immediate", config_json["operation_mode"]
+    assert_equal "daily_schedule", config_json["default_mode"]
+    # then we call resume_default
+    put "/app-api/#{@app_api_key}/#{CONFIG_JSON}/resume/default"
+    assert_equal 200, last_response.status, last_response.body
+    config_json = JSON.parse(File::read(CONFIG_JSON))
+    assert_equal "74", config_json["immediate"]["temp_f"]
+    assert !config_json["temp_override"], "temp_override key should have been deleted but was not."
+    assert_equal "daily_schedule", config_json["operation_mode"]
+    assert_equal "daily_schedule", config_json["default_mode"]
+    # verify that if we set default_operation to "off", resuming will leave heater in off state
+    FileUtils::cp(VALID_CONFIG_DEFAULT_OFF_JSON_ORIG, CONFIG_JSON)
+    put "/app-api/#{@app_api_key}/#{CONFIG_JSON}/override_mode/hold/74"
+    assert_equal 200, last_response.status, last_response.body
+    config_json = JSON.parse(File::read(CONFIG_JSON))
+    assert_equal "74", config_json["immediate"]["temp_f"]
+    assert_equal Time::now.to_s, config_json["immediate"]["time_stamp"]
+    assert_equal "immediate", config_json["operation_mode"]
+    assert_equal "off", config_json["default_mode"]
+    # then we call resume_default
+    put "/app-api/#{@app_api_key}/#{CONFIG_JSON}/resume/default"
+    assert_equal 200, last_response.status, last_response.body
+    config_json = JSON.parse(File::read(CONFIG_JSON))
+    assert_equal "74", config_json["immediate"]["temp_f"]
+    assert !config_json["temp_override"], "temp_override key should have been deleted but was not."
+    assert_equal "off", config_json["operation_mode"]
+    assert_equal "off", config_json["default_mode"]
   end
 
-  def test_webapi_turn_heater_to_temp_override
+  def test_webapi_set_default_mode
+    config_json = JSON.parse(File::read(CONFIG_JSON))
+    assert_equal "daily_schedule", config_json["default_mode"]
+    put "/app-api/#{@app_api_key}/#{CONFIG_JSON}/default/off"
+    assert_equal 200, last_response.status, last_response.body
+    config_json = JSON.parse(File::read(CONFIG_JSON))
+    assert_equal "off", config_json["default_mode"]
+    put "/app-api/#{@app_api_key}/#{CONFIG_JSON}/default/daily_schedule"
+    config_json = JSON.parse(File::read(CONFIG_JSON))
+    assert_equal "daily_schedule", config_json["default_mode"]
+  end
 
+  def test_webapi_initialize_new_heater
+    assert !File::exists?(SECOND_CONFIG_JSON)
+    begin
+      post "/app-api/#{@app_api_key}/#{SECOND_CONFIG_JSON}/initialize"
+      assert_equal 200, last_response.status, last_response.body
+      assert File::exists?(SECOND_CONFIG_JSON)
+      config_json = JSON.parse(File::read(SECOND_CONFIG_JSON))
+      assert_equal "daily_schedule", config_json["operation_mode"]
+      # change an element so we can test that re-posting doesn't overwrite existing config file
+      config_json["operation_mode"] = "off"
+      File::write(SECOND_CONFIG_JSON, JSON.generate(config_json))
+      config_json = JSON.parse(File::read(SECOND_CONFIG_JSON))
+      assert_equal "off", config_json["operation_mode"]      
+      # post to the same config file, and verify that it doesn't overwrite existing file
+      post "/app-api/#{@app_api_key}/#{SECOND_CONFIG_JSON}/initialize"
+      assert_equal 409, last_response.status, last_response.body
+      assert File::exists?(SECOND_CONFIG_JSON)
+      config_json = JSON.parse(File::read(SECOND_CONFIG_JSON))
+      assert_equal "off", config_json["operation_mode"]      
+    ensure
+      FileUtils::safe_unlink(SECOND_CONFIG_JSON)
+    end
   end
 
   ## Thermoclient API tests
@@ -203,10 +298,6 @@ class ThermoserverTest < Minitest::Test
     end
   end  
   
-  def test_functional_config_change
-    
-  end
-
   def test_favicon
     get "/favicon.ico"
     assert_equal 200, last_response.status, last_response.body

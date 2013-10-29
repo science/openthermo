@@ -2,6 +2,7 @@
   "config": {
     "port": 8080,
     "api_key": "abc123xyz",
+    "app_api_key": "xyz789xyz",
     "base_folder": "./"
   }
 }

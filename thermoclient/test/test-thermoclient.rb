@@ -656,6 +656,32 @@ class TestThermoClient < Minitest::Test
     thermostat.process_schedule
     assert_equal 70, thermostat.goal_temp_f
     assert_heater_state_time({:heater_on => false, :last_on_time => last_time_on}, thermostat)
+
+    # advance clock to the following day at 10:01am 9/15/29
+    # set temp to 65
+    # daily_schedule wants temp at 62, so heater should be off
+    cur_time = Chronic.parse("9/15/29 10:01 am")
+    cur_temp = 65
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert_heater_state_time({:heater_on => false, :last_on_time => last_time_on}, thermostat)
+    assert thermostat.heater_safe_to_turn_on?
+    thermostat.process_schedule
+    status = JSON.parse(thermostat.status_metadata)
+    assert_heater_state_time({:heater_on => false, :last_on_time => last_time_on}, thermostat)
+    assert_equal 62, thermostat.goal_temp_f
+
+    # advance clock to 10:17 9/15/29
+    # daily_schedule wants temp at 62, temp_override from previous day wants 
+    # temp at 72. Heater should remain off
+    cur_time = Chronic.parse("9/15/29 10:17 am")
+    cur_temp = 65
+    assert_set_and_test_time_temp(cur_time, cur_temp, thermostat)
+    assert_heater_state_time({:heater_on => false, :last_on_time => last_time_on}, thermostat)
+    assert thermostat.heater_safe_to_turn_on?
+    thermostat.process_schedule
+    status = JSON.parse(thermostat.status_metadata)
+    assert_heater_state_time({:heater_on => false, :last_on_time => last_time_on}, thermostat)
+    assert_equal 62, thermostat.goal_temp_f
   end
 
   def test_temp_override_on_function_corner_cases

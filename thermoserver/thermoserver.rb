@@ -48,6 +48,7 @@ module Thermoserver
   SERVER_BOOT_FILE = 'boot-server.json'
   ARGV_BOOT_FILE_INDEX = 0
   ENV_BOOT_FILE_KEY = "thermoserver-boot-file-path"
+  DEFAULT_CONFIG_FILE = "default-conf.json"
   # TODO Load these values from a config file
   # class instance provides access to config data required to run server
   class Configuration
@@ -168,12 +169,16 @@ module Thermoserver
     file = options[:file]
     filename = options[:filename]
     base_folder = options[:base_folder] || raise(Thermoserver::Error.new("Base folder required in post_file"))
+    do_not_overwrite = options[:do_not_overwrite] || false
     rooted_filename = File::join(base_folder, filename)
     html_filename = URI::escape(filename)
     retval = {:status_message => "Unknown error", :status => 500}
     if !file || file.size < 1
       retval[:status] = 400
       retval[:status_message] = "File data for file #{html_filename} provided is empty"
+    elsif do_not_overwrite && File::exists?(rooted_filename)
+      retval[:status] = 409
+      retval[:status_message] = "Filename #{html_filename} already exists and this API prohibits overwriting."
     elsif filename_is_safe?(filename)
       FileUtils.copy_file(file.path, rooted_filename)
       if File::exists?(rooted_filename)
@@ -191,13 +196,62 @@ module Thermoserver
   end
 
   module API
-    def self.upload_file(params, config)
+    def self.upload_file(params, config, options = {})
       filename = params[:thermoname]
       file = params[:file][:tempfile] if params[:file]
-      Thermoserver::post_file(:file=>file, :filename=>filename, :base_folder => config.base_folder)
+      Thermoserver::post_file(:file=>file, :filename=>filename, :base_folder => config.base_folder, 
+        :do_not_overwrite => options[:do_not_overwrite])
     end
-  end
 
+    # requires key to be equal to one of the elements in values_array
+    def self.require_field_values_in_json(key, key_descr, values_array, retval)
+      case key
+        when *values_array 
+        else
+         retval[:json] = "invalid"
+         retval[:fields] << key_descr
+      end
+    end
+
+    # validate json against rules for 
+    def self.validate_config_json(json)
+      retval = {:json => "valid", :fields => []}
+      require_field_values_in_json(json["operation_mode"], "operation_mode", ["daily_schedule","off","immediate"], retval)
+      require_field_values_in_json(json["default_mode"], "default_mode", ["daily_schedule","off"], retval)
+      daily_schedule = json["daily_schedule"]
+      if daily_schedule
+        if !daily_schedule["times_of_operation"]
+          retval[:json] = "invalid"
+          retval[:fields] << "daily_schedule => times_of_operation"
+        end
+        timesop = daily_schedule["times_of_operation"]
+        if timesop
+          timesop_count = 0
+          timesop.each do |window|
+            if !Chronic.parse(window["start"])
+              retval[:json] = 'invalid'
+              retval[:fields] << "daily_schedule => times_of_operation => start, array count #{timesop_count}"
+            end
+            if !Chronic.parse(window["stop"])
+              retval[:json] = 'invalid'
+              retval[:fields] << "daily_schedule => times_of_operation => stop, array count #{timesop_count}"
+            end
+            if (window["temp_f"].to_i == 0) && (window["temp_f"] != "0")
+              retval[:json] = 'invalid'
+              retval[:fields] << "daily_schedule => times_of_operation => temp_f, array count #{timesop_count}"
+            end
+            timesop_count += 1
+          end
+        end
+        # immediate is optional but must have temp_f as number if exist
+        # temp_override is optional but must have temp_f as number and time_stamp as chronic parseable if exist
+        # off key must have off value
+        # debug is optional and has optional log_level, but log_level must have integer is exist
+      end
+      retval
+    end
+
+  end # API
 end # Thermoserver
 
 config = Thermoserver::Configuration.new
@@ -237,7 +291,7 @@ end
 
 # Set the operation mode for the heater
 # If the configuration file does not exist, return an error
-get "/app-api/#{config.app_api_key}/:thermoname/operation_mode/:mode" do
+put "/app-api/#{config.app_api_key}/:thermoname/operation_mode/:mode" do
   # load the heater file for editing
   mode = params[:mode]
   filename = params[:thermoname]
@@ -264,7 +318,7 @@ end
 
 ## TODO merge replicated code from above and below
 # Set the heater to temp_override or immediate ("hold") mode
-get "/app-api/#{config.app_api_key}/:thermoname/override_mode/:mode/:temp_f" do
+put "/app-api/#{config.app_api_key}/:thermoname/override_mode/:mode/:temp_f" do
   mode = params[:mode]
   temp_f = params[:temp_f]
   if mode != "temp_override" && mode != "hold" && mode != "immediate"
@@ -288,6 +342,9 @@ get "/app-api/#{config.app_api_key}/:thermoname/override_mode/:mode/:temp_f" do
   mode_value = {:temp_f => temp_f, :time_stamp => Time::now.to_s}
   # set key to mode
   heater_config[mode] = mode_value
+  if mode == "immediate"
+    heater_config["operation_mode"] = mode
+  end
   # save the heater file
   file_contents = JSON.generate(heater_config)
   tempfile = Tempfile.new('thermo-operation-mode')
@@ -298,8 +355,82 @@ get "/app-api/#{config.app_api_key}/:thermoname/override_mode/:mode/:temp_f" do
   file_hash[:status_message] || ""
 end
 
+# causes heater to resume default operation mode
+# the mode which is resumed is stored in default_mode key in config file
+put "/app-api/#{config.app_api_key}/:thermoname/resume/default" do
+  # retrieve heater file
+  filename = params[:thermoname]
+  file_hash = Thermoserver::get_file(:filename=>filename, :base_folder => config.base_folder)
+  if file_hash[:authorized] && file_hash[:status] == 200
+    file_contents = file_hash[:file]
+  else
+    retval = file_hash[:status_message]
+    response.status = file_hash[:status]
+    return retval
+  end
+  # process heater file
+  heater_config = JSON.parse(file_contents)
+  heater_config["temp_override"] = nil
+  heater_config["operation_mode"] = heater_config["default_mode"] || "off"
+  # save the heater file
+  file_contents = JSON.generate(heater_config)
+  tempfile = Tempfile.new('thermo-operation-mode')
+  tempfile.write(file_contents)
+  upload_params = {:thermoname => filename, :file => {:tempfile=>tempfile}}
+  file_hash = Thermoserver::API::upload_file(upload_params,config)
+  response.status = file_hash[:status]
+  file_hash[:status_message] || ""
+end
 
-## API Server (provides/stores configuration)
+put "/app-api/#{config.app_api_key}/:thermoname/default/:mode" do
+  mode = params[:mode]
+  # retrieve heater file
+  filename = params[:thermoname]
+  file_hash = Thermoserver::get_file(:filename=>filename, :base_folder => config.base_folder)
+  if file_hash[:authorized] && file_hash[:status] == 200
+    file_contents = file_hash[:file]
+  else
+    retval = file_hash[:status_message]
+    response.status = file_hash[:status]
+    return retval
+  end
+  # process heater file
+  heater_config = JSON.parse(file_contents)
+  heater_config["default_mode"] = mode
+  # save the heater file
+  file_contents = JSON.generate(heater_config)
+  tempfile = Tempfile.new('thermo-operation-mode')
+  tempfile.write(file_contents)
+  upload_params = {:thermoname => filename, :file => {:tempfile=>tempfile}}
+  file_hash = Thermoserver::API::upload_file(upload_params,config)
+  response.status = file_hash[:status]
+  file_hash[:status_message] || ""
+end
+
+post "/app-api/#{config.app_api_key}/:thermoname/initialize" do
+  filename = params[:thermoname]
+  if !File::exists?(Thermoserver::DEFAULT_CONFIG_FILE)
+    response.status = 404
+    return "Default config file #{DEFAULT_CONFIG_FILE} does not exist in folder where this server was started."
+  end
+  tempfile = Tempfile.new('new-config')
+  tempfile.write(File::read(Thermoserver::DEFAULT_CONFIG_FILE))
+  upload_params = {:thermoname => filename, :file => {:tempfile => tempfile}}
+  file_hash = Thermoserver::API::upload_file(upload_params, config, {:do_not_overwrite => true})
+  response.status = file_hash[:status]
+  file_hash[:status_message] || ""
+end
+
+# receives a posted payload under "file" key
+# returns json response indicating if it is a valid config file or not
+post "/public-api/validate/config" do
+  file = params[:file][:tempfile]
+  json = JSON.parse(File::read(file))
+  retval = Thermoserver::API::validate_config_json(json)
+  JSON.generate(retval)
+end
+
+## Thermoclient API Server (provides/stores configuration files)
 
 # Return file contents if file exists
 get "/api/#{config.api_key}/file/:thermoname" do

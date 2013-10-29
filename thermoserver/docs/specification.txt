@@ -27,42 +27,54 @@ ThermoApp downloads status file from server
 
 THERMOCLIENT API
 
-POST: /api/[key]/file/[thermo-name]
-  JSON payload under key "file" - upload is written directly to file [thermo-name]
-GET: /api/[key]/file/[thermo-name]
-  GETs [thermo-name file]
-GET: /api/[key]/if-file/newer-date/[date-string]/[thermo-name]
+POST: /api/:api_key/file/:thermoname
+  POST payload under key "file" - upload is written directly to file :thermoname
+GET: /api/:api_key/file/:thermoname
+  GETs :thermoname file
+GET: /api/:api_key/if-file/newer-date/:date-string/:thermoname
   Only returns content if file is newer than date specified
-  [date-string] in URI::escaped, Chronic-parsable format *without* slashes such as: 
+  :date-string in URI::escaped, Chronic-parsable format *without* slashes such as: 
    "10-18-22%2010%3A05am" (represents: 10-18-22 10:05am)
-GET: /api/[key]/list/[pattern]
+GET: /api/:api_key/list/:pattern
   Returns JSON payload with array of filenames corresponding to files matching pattern
-  [pattern] can only be ascii chars 0-9 period and hyphen - no wild card matches
+  :pattern can only be ascii chars 0-9 period and hyphen - no wild card matches
     Primary use-case is to obtain all "config" or "status" files on the server
 
 WEB APP API
-In-progress
-PUT: /webapi/[web-key]/[thermo-name]/off
-  Sets the named heater to off state
-PUT: /webapi/[web-key]/[thermo-name]/on
-  Unsets the named heater off state
-PUT: /webapi/[web-key]/[thermo-name]/hold/[temp_f]
-  Sets the named heater to hold temp at temp_f (hold temp is permanent until manually disabled)
-PUT: /webapi/[web-key]/[thermo-name]/override/[temp_f]
-  Sets the named heater to override temp at temp_f (override temp is temporary until next scheduled event)
-PUT: /webapi/[web-key]/[thermo-name]/resume_schedule
-  Returns the named heater to normal scheduled operation
-POST: /webapi/[web-key]/[thermo-name]/initialize
-  Creates a new file with default configuration for thermo-name. If thermo-name exists, returns error.
+PUT: /app-api/:app_api_key/:thermoname/operation_mode/:mode
+  Sets the named heater to mode specified
+  Mode options are: off or daily_schedule
+  To set "immediate" or "temp_override" modes, use "override_mode" API
+  Actions: operation_mode is set to :mode
+PUT: /app-api/:app_api_key/:thermoname/override_mode/:mode/:temp_f
+  Sets the named heater to override :mode specified at :temp_f
+  :mode values can be: temp_override, hold, immediate (hold and immediate are synonyms)
+  Actions: operation_mode is set to temp_override or immediate, as appropriate
+PUT: /app-api/:app_api_key/:thermoname/resume_default
+  Returns the named heater to normal scheduled operation (or off status)
+  Actions: temp_override key is deleted and operation mode value is set to value of key "default_mode" (or "off" if default_mode key is not found)
+PUT: /app-api/:app_api_key/:thermoname/default_mode/:mode
+  Sets the value of default_mode. Possible values are "off" and "daily_schedule"
+POST: /app-api/:app_api_key/:thermoname/initialize
+  Creates a new heater configuration file with default configuration for thermoname. If thermoname exists, returns error.
+
+Planned:
+POST: /public-api/validate/config
+  Validates a configuration file to confirm it will work with Thermoclient
+  Recieves payload under key "file" in POST upload
+  Returns 200 payload {"json": "valid", "fields": []} if OK
+    or 200 {"json"=>"invalid", "fields" => ["invalid_field_name_1", "invalid_field_name_2"]}
+    Values in fields may be descriptive and not precisely a field name
+
 
 Planned
-GET: /api/[key]/if-file/not-match-hash/[hash-string]/thermo-name]
+GET: /api/:api_key/if-file/not-match-hash/:hash-string/thermoname]
   Only returns content if hash specified does not match hash of current file on disk
-HEAD: /api/[key]/file/[thermo-name]
+HEAD: /api/:api_key/file/:thermoname
   Lets client check head to see if file has changed
-GET: /api/[key]/if-file/changes/[thermo-name]
-  GETs [thermo-name] file but return content only after the file changes (changes during wait period)
+GET: /api/:api_key/if-file/changes/:thermoname
+  GETs :thermoname file but return content only after the file changes (changes during wait period)
   timeout is a string passed as Chronic compatible future time so that this will parse
-    Chronic.parse("#{params[:timeout] after now}")
+    Chronic.parse("#{params::timeout after now}")
 
 
