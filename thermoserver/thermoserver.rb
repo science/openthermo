@@ -206,14 +206,18 @@ module Thermoserver
     # requires key to be equal to one of the elements in values_array
     def self.require_field_values_in_json(key, key_descr, values_array, retval)
       case key
-        when *values_array 
+        # this tests if key is contained in values_array
+        when *values_array
         else
          retval[:json] = "invalid"
          retval[:fields] << key_descr
       end
     end
 
-    # validate json against rules for 
+    # validate submitted json against rules for config files
+    # returns a hash structure as:
+    # {:json => "[valid|invalid]", :fields => [[array of fields which are invalid if any]]}
+    # values in fields are intended as human readable to assist in determining which fields are invalid
     def self.validate_config_json(json)
       retval = {:json => "valid", :fields => []}
       require_field_values_in_json(json["operation_mode"], "operation_mode", ["daily_schedule","off","immediate"], retval)
@@ -236,7 +240,8 @@ module Thermoserver
               retval[:json] = 'invalid'
               retval[:fields] << "daily_schedule => times_of_operation => stop, array count #{timesop_count}"
             end
-            if (window["temp_f"].to_i == 0) && (window["temp_f"] != "0")
+            # make sure temp_f is any integer (nil or any non-int string returns 0 from to_i)
+            if ((window["temp_f"].to_i == 0) && (window["temp_f"] != "0"))
               retval[:json] = 'invalid'
               retval[:fields] << "daily_schedule => times_of_operation => temp_f, array count #{timesop_count}"
             end
@@ -246,7 +251,10 @@ module Thermoserver
         # immediate is optional but must have temp_f as number if exist
         # temp_override is optional but must have temp_f as number and time_stamp as chronic parseable if exist
         # off key must have off value
-        # debug is optional and has optional log_level, but log_level must have integer is exist
+        # debug is optional and has optional log_level, but log_level must have integer if exist
+      else
+        retval[:json] = 'invalid'
+        retval[:fields] << "daily_schedule"
       end
       retval
     end
@@ -255,8 +263,8 @@ module Thermoserver
 end # Thermoserver
 
 config = Thermoserver::Configuration.new
-# used in testing
 
+# debug methods used in testing and should have no impact on production
 # call debug! in code (in this file) to invoke the debugger. Only 
 # invokes debugger if debug variable has been set in Thermoserver
 def debug!
@@ -268,7 +276,7 @@ def debug(val)
   Thermoserver::debug(val)
 end
 
-# setup server
+# setup web server
 set :server, 'thin'
 set :port, config.port
 

@@ -82,7 +82,6 @@ class ThermoserverTest < Minitest::Test
 
   def test_publicapi_validate_config
     filedata = File::read(CONFIG_JSON)
-    filename = CONFIG_JSON
     tempfile = Tempfile.new('validate_config')
     tempfile.write(filedata)
     tempfile.rewind
@@ -93,6 +92,53 @@ class ThermoserverTest < Minitest::Test
     assert_equal "valid", retval["json"], retval.inspect
     assert_equal [], retval["fields"], retval.inspect
     tempfile.unlink
+  end
+
+  def test_publicapi_validate_invalid_config
+    filedata = File::read(CONFIG_JSON)
+    json = JSON.parse(filedata)
+    # test removing various elements of times of operation
+    json["daily_schedule"]["times_of_operation"].first.delete("start")
+    json["daily_schedule"]["times_of_operation"].last.delete("stop")
+    json["daily_schedule"]["times_of_operation"][1]["temp_f"] = "Non-int"
+    json["daily_schedule"]["times_of_operation"][2].delete("temp_f")
+    json_test_data = [{json => ["daily_schedule => times_of_operation => start, array count 0", 
+      "daily_schedule => times_of_operation => temp_f, array count 1", 
+      "daily_schedule => times_of_operation => temp_f, array count 2", 
+      "daily_schedule => times_of_operation => stop, array count #{json["daily_schedule"]["times_of_operation"].size-1}"]}]
+    # test removing times_of_op 
+    json = JSON.parse(filedata)
+    json["daily_schedule"].delete("times_of_operation")
+    json_test_data << {json => ["daily_schedule => times_of_operation"]}
+    # test removing daily_schedule
+    json = JSON.parse(filedata)
+    json.delete("daily_schedule")
+    json_test_data << {json => ["daily_schedule"]}
+    # test removing operation mode and default mode
+    json = JSON.parse(filedata)
+    json.delete("operation_mode")
+    json.delete("default_mode")
+    json_test_data << {json => ["operation_mode","default_mode"]}
+    # test operation mode has invalid mode
+    json = JSON.parse(filedata)
+    json["operation_mode"] = "foobar"
+    json_test_data << {json => ["operation_mode"]}
+
+    json_test_data.each do |test_hash|
+      json = test_hash.first.first
+      invalid_fields = test_hash.first.last
+      filedata = JSON.generate(json)
+      tempfile = Tempfile.new('validate_config')
+      tempfile.write(filedata)
+      tempfile.rewind
+      upload_file = Rack::Test::UploadedFile.new(tempfile.path, "text/json")    
+      post "/public-api/validate/config", "file" => upload_file
+      assert_equal 200, last_response.status, last_response.body
+      retval = JSON.parse(last_response.body)
+      assert_equal "invalid", retval["json"], retval.inspect+"\nExpected invalid fields:"+invalid_fields.inspect
+      assert_equal invalid_fields, retval["fields"], retval.inspect
+      tempfile.unlink
+    end
   end
 
   def test_webapi_turn_heater_off
@@ -126,7 +172,8 @@ class ThermoserverTest < Minitest::Test
     put "/app-api/#{@app_api_key}/#{CONFIG_JSON}/override_mode/hold/74"
     assert_equal 200, last_response.status, last_response.body
     config_json = JSON.parse(File::read(CONFIG_JSON))
-    assert_equal Time::now.to_s, config_json["immediate"]["time_stamp"]
+    # we don't test seconds so not to fail by 1 second boundary errors
+    assert_equal Time::now.strftime("%Y-%m-%d H%:%M %z"), Chronic.parse(config_json["immediate"]["time_stamp"]).strftime("%Y-%m-%d H%:%M %z")
     assert_equal "74", config_json["immediate"]["temp_f"]
     assert_equal "immediate", config_json["operation_mode"]
   end
@@ -135,7 +182,7 @@ class ThermoserverTest < Minitest::Test
     put "/app-api/#{@app_api_key}/#{CONFIG_JSON}/override_mode/temp_override/68"
     assert_equal 200, last_response.status, last_response.body
     config_json = JSON.parse(File::read(CONFIG_JSON))
-    assert_equal Time::now.to_s, config_json["temp_override"]["time_stamp"]
+    assert_equal Time::now.strftime("%Y-%m-%d H%:%M %z"), Chronic.parse(config_json["temp_override"]["time_stamp"]).strftime("%Y-%m-%d H%:%M %z")
     assert_equal "68", config_json["temp_override"]["temp_f"]
     assert_equal "daily_schedule", config_json["operation_mode"]
     assert_equal "daily_schedule", config_json["default_mode"]
