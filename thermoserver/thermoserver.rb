@@ -49,6 +49,7 @@ module Thermoserver
   ARGV_BOOT_FILE_INDEX = 0
   ENV_BOOT_FILE_KEY = "thermoserver-boot-file-path"
   DEFAULT_CONFIG_FILE = "default-conf.json"
+
   # TODO Load these values from a config file
   # class instance provides access to config data required to run server
   class Configuration
@@ -214,6 +215,24 @@ module Thermoserver
       end
     end
 
+    # requires key to be the same class as klass
+    def self.require_field_type_in_json(key, key_descr, klass, retval)
+      valid = true
+      if klass == Time
+        if !Chronic.parse(key.to_s)
+          valid = false
+        end
+      elsif klass == Integer
+        if key.to_i == 0 && key != "0"
+          valid = false
+        end
+      end
+      if !valid
+        retval[:json] = "invalid"
+        retval[:fields] << key_descr
+      end
+    end
+
     # validate submitted json against rules for config files
     # returns a hash structure as:
     # {:json => "[valid|invalid]", :fields => [[array of fields which are invalid if any]]}
@@ -248,13 +267,30 @@ module Thermoserver
             timesop_count += 1
           end
         end
-        # immediate is optional but must have temp_f as number if exist
-        # temp_override is optional but must have temp_f as number and time_stamp as chronic parseable if exist
-        # off key must have off value
-        # debug is optional and has optional log_level, but log_level must have integer if exist
-      else
-        retval[:json] = 'invalid'
-        retval[:fields] << "daily_schedule"
+      end
+      # immediate is optional but must have temp_f as number if exist
+      immediate = json["immediate"]
+      if immediate
+        require_field_type_in_json(immediate["temp_f"], "immediate => temp_f", Integer, retval)
+      end
+      # temp_override is optional but must have temp_f as number and time_stamp as chronic parseable if exist
+      temp_override = json["temp_override"]
+      if temp_override
+        require_field_type_in_json(temp_override["temp_f"], "temp_override => temp_f", Integer, retval)
+        require_field_type_in_json(temp_override["time_stamp"], "temp_override => time_stamp", Time, retval)
+      end
+      # off key is optional but must have off value, if exists
+      off = json["off"]
+      if off
+        require_field_values_in_json(off, "off", ["off"], retval)
+      end
+      # debug is optional and has optional log_level, but log_level must have integer if exist
+      debug_level = json["debug"]
+      if debug_level
+        log_level = debug_level["log_level"]
+        if log_level
+          require_field_type_in_json(log_level, "debug => log_level", Integer, retval)
+        end
       end
       retval
     end

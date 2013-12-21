@@ -57,8 +57,6 @@ PUT: /app-api/:app_api_key/:thermoname/default_mode/:mode
   Sets the value of default_mode. Possible values are "off" and "daily_schedule"
 POST: /app-api/:app_api_key/:thermoname/initialize
   Creates a new heater configuration file with default configuration for thermoname. If thermoname exists, returns error.
-
-Planned:
 POST: /public-api/validate/config
   Validates a configuration file to confirm it will work with Thermoclient
   Recieves payload under key "file" in POST upload

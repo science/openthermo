@@ -110,10 +110,6 @@ class ThermoserverTest < Minitest::Test
     json = JSON.parse(filedata)
     json["daily_schedule"].delete("times_of_operation")
     json_test_data << {json => ["daily_schedule => times_of_operation"]}
-    # test removing daily_schedule
-    json = JSON.parse(filedata)
-    json.delete("daily_schedule")
-    json_test_data << {json => ["daily_schedule"]}
     # test removing operation mode and default mode
     json = JSON.parse(filedata)
     json.delete("operation_mode")
@@ -123,7 +119,15 @@ class ThermoserverTest < Minitest::Test
     json = JSON.parse(filedata)
     json["operation_mode"] = "foobar"
     json_test_data << {json => ["operation_mode"]}
-
+    # test immediate present but missing temp_f
+    json = JSON.parse(filedata)
+    json["immediate"].delete("temp_f")
+    json_test_data << {json => ["immediate => temp_f"]}
+    # test temp_override present but missing temp_f and time_stamp
+    json = JSON.parse(filedata)
+    json["temp_override"].delete("temp_f")
+    json["temp_override"].delete("time_stamp")
+    json_test_data << {json => ["temp_override => temp_f", "temp_override => time_stamp"]}
     json_test_data.each do |test_hash|
       json = test_hash.first.first
       invalid_fields = test_hash.first.last
@@ -136,7 +140,7 @@ class ThermoserverTest < Minitest::Test
       assert_equal 200, last_response.status, last_response.body
       retval = JSON.parse(last_response.body)
       assert_equal "invalid", retval["json"], retval.inspect+"\nExpected invalid fields:"+invalid_fields.inspect
-      assert_equal invalid_fields, retval["fields"], retval.inspect
+      assert_equal invalid_fields, retval["fields"], retval.inspect+"\nExpected invalid fields:"+invalid_fields.inspect
       tempfile.unlink
     end
   end
