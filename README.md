@@ -17,12 +17,28 @@ There are several parts of this project:
 * A ruby client = thermoruby.rb and thermoruby_controller and test files
 * thermoserver.rb server = this is used for testing and can be used for operations. It is a distinct codebase but required for testing thermoruby.rb. It also can be used in production operations to support thermoruby.rb and its controller.
 
-More documentation to come, and contact welcome from interested users or contributors. science@misuse.org
+More documentation to come, and contact welcome from interested users or contributors. Contact science@misuse.org with subject line including "openthermo" to discuss, or send pull requests to openthermo project on github.com.
+
+# General concepts
+
+Typical operations are:
+  * ThermoClient uploads status file to server
+  * ThermoClient downloads config file from server
+   ** ThermoClient loops on download config file using 'if-file/newer-date'
+   **   ThermoClient operates on config file, adjusting heater run-state accordingly
+  * ThermoApp displays list of available heaters to control
+  * ThermoApp displays current config and status for a selected heater
+  * ThermoApp accepts user input to change current config
+  * ThermoApp activates WebApp api to register that input with server
+  * Server adjusts appropriate config file to current settings
+
+Look in specification.txt file for documentation on api and other implemented and planned details.
 
 # Installation
-To install, be sure you have required libraries which can be found in thermoclient.rb file. GEMSPEC file forthcoming. Ruby 1.9.3 was used in development.
+To install, be sure you have required libraries which can be found in thermoclient.rb and thermoserver.rb files. GEMSPEC file forthcoming. Ruby 1.9.3 was used in development.
 
 To test, you must also have thermoserver project installed or an equivalent web server exposing the API specified in the docs folder of thermoserver.
+
 
 # Testing
 If you are using thermoserver to run tests, you must first start the webserver prior to running tests. On Windows you can run "startserver.cmd" in the test folder. 

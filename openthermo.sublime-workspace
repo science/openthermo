@@ -4,6 +4,14 @@
 		"selected_items":
 		[
 			[
+				"time",
+				"time_stamp"
+			],
+			[
+				"temp_",
+				"temp_override"
+			],
+			[
 				"operation",
 				"operation_mode"
 			],
@@ -199,7 +207,7 @@
 			"file": "thermoserver/thermoserver.rb",
 			"settings":
 			{
-				"buffer_size": 19852,
+				"buffer_size": 21031,
 				"line_ending": "Windows"
 			}
 		},
@@ -207,7 +215,31 @@
 			"file": "thermoserver/test/test-thermoserver.rb",
 			"settings":
 			{
-				"buffer_size": 15324,
+				"buffer_size": 15678,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "thermoserver/views/control.erb",
+			"settings":
+			{
+				"buffer_size": 348,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "thermoserver/views/dashboard.erb",
+			"settings":
+			{
+				"buffer_size": 219,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "thermoserver/views/layout.erb",
+			"settings":
+			{
+				"buffer_size": 196,
 				"line_ending": "Windows"
 			}
 		},
@@ -223,7 +255,7 @@
 			"file": "thermoserver/docs/specification.txt",
 			"settings":
 			{
-				"buffer_size": 3971,
+				"buffer_size": 4271,
 				"line_ending": "Windows"
 			}
 		},
@@ -255,7 +287,7 @@
 			"file": "README.md",
 			"settings":
 			{
-				"buffer_size": 13758,
+				"buffer_size": 14626,
 				"line_ending": "Windows"
 			}
 		}
@@ -466,7 +498,7 @@
 	"groups":
 	[
 		{
-			"selected": 1,
+			"selected": 0,
 			"sheets":
 			[
 				{
@@ -474,7 +506,7 @@
 					"file": "thermoserver/thermoserver.rb",
 					"settings":
 					{
-						"buffer_size": 19852,
+						"buffer_size": 21031,
 						"regions":
 						{
 							"bookmarks":
@@ -484,12 +516,8 @@
 								"regions":
 								[
 									[
-										9767,
-										9767
-									],
-									[
-										17491,
-										17491
+										11157,
+										11157
 									]
 								],
 								"scope": "bookmarks"
@@ -498,8 +526,8 @@
 						"selection":
 						[
 							[
-								8799,
-								8799
+								12940,
+								12940
 							]
 						],
 						"settings":
@@ -509,7 +537,7 @@
 							"translate_tabs_to_spaces": true
 						},
 						"translation.x": 0.0,
-						"translation.y": 4646.0,
+						"translation.y": 7135.0,
 						"zoom_level": 1.0
 					},
 					"type": "text"
@@ -519,7 +547,7 @@
 					"file": "thermoserver/test/test-thermoserver.rb",
 					"settings":
 					{
-						"buffer_size": 15324,
+						"buffer_size": 15678,
 						"regions":
 						{
 							"bookmarks":
@@ -528,14 +556,6 @@
 								"icon": "bookmark",
 								"regions":
 								[
-									[
-										2996,
-										2996
-									],
-									[
-										10448,
-										10448
-									]
 								],
 								"scope": "bookmarks"
 							}
@@ -543,8 +563,8 @@
 						"selection":
 						[
 							[
-								8430,
-								8430
+								4072,
+								4072
 							]
 						],
 						"settings":
@@ -553,14 +573,92 @@
 							"tab_size": 2,
 							"translate_tabs_to_spaces": true
 						},
-						"translation.x": 233.0,
-						"translation.y": 3979.0,
+						"translation.x": 0.0,
+						"translation.y": 2001.0,
 						"zoom_level": 1.0
 					},
 					"type": "text"
 				},
 				{
 					"buffer": 2,
+					"file": "thermoserver/views/control.erb",
+					"settings":
+					{
+						"buffer_size": 348,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								58,
+								58
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Rails/HTML (Rails).tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 3,
+					"file": "thermoserver/views/dashboard.erb",
+					"settings":
+					{
+						"buffer_size": 219,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								120,
+								120
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Rails/HTML (Rails).tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 4,
+					"file": "thermoserver/views/layout.erb",
+					"settings":
+					{
+						"buffer_size": 196,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								0,
+								0
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Rails/HTML (Rails).tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 5,
 					"file": "thermoserver/test/default-conf.json",
 					"settings":
 					{
@@ -588,19 +686,19 @@
 					"type": "text"
 				},
 				{
-					"buffer": 3,
+					"buffer": 6,
 					"file": "thermoserver/docs/specification.txt",
 					"settings":
 					{
-						"buffer_size": 3971,
+						"buffer_size": 4271,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								3435,
-								3435
+								2211,
+								2211
 							]
 						],
 						"settings":
@@ -610,13 +708,13 @@
 							"translate_tabs_to_spaces": true
 						},
 						"translation.x": 0.0,
-						"translation.y": 1012.0,
+						"translation.y": 886.0,
 						"zoom_level": 1.0
 					},
 					"type": "text"
 				},
 				{
-					"buffer": 4,
+					"buffer": 7,
 					"file": "thermoclient/thermoclient.rb",
 					"settings":
 					{
@@ -657,7 +755,7 @@
 					"type": "text"
 				},
 				{
-					"buffer": 5,
+					"buffer": 8,
 					"file": "thermoclient/test/test-thermoclient.rb",
 					"settings":
 					{
@@ -698,7 +796,7 @@
 					"type": "text"
 				},
 				{
-					"buffer": 6,
+					"buffer": 9,
 					"file": "thermoclient/test/backbedroom-override.json.orig",
 					"settings":
 					{
@@ -726,19 +824,19 @@
 					"type": "text"
 				},
 				{
-					"buffer": 7,
+					"buffer": 10,
 					"file": "README.md",
 					"settings":
 					{
-						"buffer_size": 13758,
+						"buffer_size": 14626,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								9557,
-								9557
+								2188,
+								2188
 							]
 						],
 						"settings":
@@ -748,7 +846,7 @@
 							"translate_tabs_to_spaces": true
 						},
 						"translation.x": 0.0,
-						"translation.y": 3738.0,
+						"translation.y": 242.0,
 						"zoom_level": 1.0
 					},
 					"type": "text"

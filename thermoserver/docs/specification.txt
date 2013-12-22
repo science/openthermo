@@ -17,13 +17,17 @@
 #     along with The Open Thermostat project.  
 #     If not, see <http://www.gnu.org/licenses/>.
 
-USAGE PATTERNS
+USAGE PATTERN
 
 ThermoClient uploads status file to server
 ThermoClient downloads config file from server
   ThermoClient loops on download config file using 'if-file/newer-date'
-ThermoApp uploads config file to server based on user input changes
-ThermoApp downloads status file from server
+    ThermoClient operates on config file, adjusting heater run-state accordingly
+ThermoApp displays list of available heaters to control
+ThermoApp displays current config and status for a selected heater
+ThermoApp accepts user input to change current config
+ThermoApp activates WebApp api to register that input with server
+Server adjusts appropriate config file to current settings
 
 THERMOCLIENT API
 
@@ -37,7 +41,7 @@ GET: /api/:api_key/if-file/newer-date/:date-string/:thermoname
    "10-18-22%2010%3A05am" (represents: 10-18-22 10:05am)
 GET: /api/:api_key/list/:pattern
   Returns JSON payload with array of filenames corresponding to files matching pattern
-  :pattern can only be ascii chars 0-9 period and hyphen - no wild card matches
+  :pattern can only be ascii chars 0-9 period and hyphen - wild cards are automatically applied to front/back of pattern
     Primary use-case is to obtain all "config" or "status" files on the server
 
 WEB APP API
@@ -63,7 +67,6 @@ POST: /public-api/validate/config
   Returns 200 payload {"json": "valid", "fields": []} if OK
     or 200 {"json"=>"invalid", "fields" => ["invalid_field_name_1", "invalid_field_name_2"]}
     Values in fields may be descriptive and not precisely a field name
-
 
 Planned
 GET: /api/:api_key/if-file/not-match-hash/:hash-string/thermoname]
