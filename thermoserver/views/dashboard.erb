@@ -1,8 +1,12 @@
-<%="hello world<br />Here"%>
-
 <p />
-List of available thermostats to control
-...Clickable List... => link to control.erb
-Create new thermostat to control
+<% list_of_heaters.each do |heater_name|%>
+
+<p>List of available thermostats to control</p>
+<% heater_url = url("/app/control/#{app_api_key}/#{heater_name}")%>
+<a href="<%=heater_url%>"><%=heater_name%></a><br />
+
+<% end # list_of_heaters.each do...%>
+
+<p>Create new thermostat to control</p>
 ...Input box for name of thermostat...
 ...Button to create new...

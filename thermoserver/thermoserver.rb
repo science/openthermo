@@ -27,7 +27,8 @@ require 'json'
 require 'fileutils'
 require 'tempfile'
 require 'chronic'
-if ENV['RACK_ENV'] == 'testing'
+
+if ENV['RACK_ENV'] == 'testing' or settings.development?
   require 'debugger'
 end
 
@@ -149,11 +150,13 @@ module Thermoserver
   def self.get_list_of_files(options)
     pattern = options[:pattern]
     base_folder = options[:base_folder]
+    rooted_filename = File::join(base_folder, "*#{pattern}*")
     retval = {:authorized => false, :status => 500, :status_message => "Unknown error in list request processing."}
     if filename_is_safe?(pattern)
       # get files matching pattern in data folder
-      list = Dir["*#{pattern}*"]
+      list = Dir[rooted_filename]
       if list.length > 0
+        list.collect! {|l| File::basename(l)}
         results_json = {:file_list => list}.to_json
         retval = {:authorized => true, :status => 200,
           :results_json => results_json}
@@ -320,9 +323,23 @@ puts "\nBase file folder:\n    #{File::expand_path(config.base_folder)}\n\n"
 
 ## Application server (generates user interface from erb templates)
 
-get "/app/:page/#{config.app_api_key}" do
-  erb params[:page].to_sym
+get "/app/dashboard/#{config.app_api_key}" do
+  file_hash = Thermoserver::get_list_of_files({:pattern=>"config", :base_folder => config.base_folder})
+  if file_hash[:authorized] && file_hash[:status] == 200
+    list_of_heaters = JSON.parse(file_hash[:results_json])["file_list"]
+    retval = erb :dashboard, :locals => {:list_of_heaters => list_of_heaters, :app_api_key => config.app_api_key}
+  else
+    response.status = file_hash[:status]
+    retval = file_hash[:status_message]
+  end
+  retval
 end
+
+get "/app/control/#{config.app_api_key}/:heater_name" do
+  retval = erb :control, :locals => {:app_api_key => config.app_api_key}
+  retval
+end
+
 
 # return open thermo icon
 # Credit to Rob Sanders for icon: http://www.iconarchive.com/artist/rob-sanders.html
@@ -426,6 +443,9 @@ put "/app-api/#{config.app_api_key}/:thermoname/resume/default" do
   file_hash[:status_message] || ""
 end
 
+# Sets the named heater to mode specified
+# Mode options are: off or daily_schedule
+# To set "immediate" or "temp_override" modes, use "override_mode" API
 put "/app-api/#{config.app_api_key}/:thermoname/default/:mode" do
   mode = params[:mode]
   # retrieve heater file
@@ -451,6 +471,7 @@ put "/app-api/#{config.app_api_key}/:thermoname/default/:mode" do
   file_hash[:status_message] || ""
 end
 
+#  Creates a new heater configuration file with default configuration for thermoname. If thermoname exists, returns error.
 post "/app-api/#{config.app_api_key}/:thermoname/initialize" do
   filename = params[:thermoname]
   if !File::exists?(Thermoserver::DEFAULT_CONFIG_FILE)

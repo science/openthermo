@@ -2,6 +2,7 @@
   "config": {
     "port": 8080,
     "api_key": "WAtJD7txQj8WxfKBHMQPaKuR7Mf4Yu4Mn",
+    "app_api_key": "TrxAsgoivs8g6HNuCiuHCrga4yo9aoqrDq43qoWu",
     "base_folder": "./data"
   }
 }
