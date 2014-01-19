@@ -246,6 +246,11 @@ whether the heater is on or off, the goal temperature the thermostat is attempti
 other related data. Generally this information is uploaded to the server because the client applications interacting with
 the thermostat will want access to this information.
 
+# Related Projects
+Spark.io built a prototype thermostat in a day: http://blog.spark.io/2014/01/17/open-source-thermostat/
+Codebase is here: https://github.com/spark/thermostat
+Their platform is dependent on spark's architecture, but it's an interesting alternative approach.
+
 
 # License
 (c) 2013 Steve Midgley 
