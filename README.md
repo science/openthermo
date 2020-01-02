@@ -98,7 +98,7 @@ A configuration file looks like:
 {
   "debug": {"log_level": 9},
   "operation_mode": "daily_schedule",
-  "default_mode": "daily_schedule"
+  "default_mode": "daily_schedule",
   "daily_schedule": {
     "times_of_operation": [
       {"start": "12:00 am", "stop": "6:30 am", "temp_f": 60},
